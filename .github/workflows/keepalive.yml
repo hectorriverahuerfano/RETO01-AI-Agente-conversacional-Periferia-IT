@@ -1,0 +1,16 @@
+# Mantiene despierto el servicio gratuito de Render (se duerme tras 15 min sin tráfico).
+# Solo consulta /api/health: no llama al modelo ni gasta tokens.
+name: keepalive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/health
+        run: curl -fsS --max-time 90 --retry 2 https://reto01-registro-proveedor.onrender.com/api/health
