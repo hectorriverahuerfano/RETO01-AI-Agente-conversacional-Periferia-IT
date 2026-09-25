@@ -1,0 +1,17 @@
+# dependencias y salidas
+node_modules/
+out/
+dist/
+*.zip
+
+# secretos: NUNCA al repo
+.env
+.env.*
+!.env.example
+api-cluad.md
+gitconnec.md
+render.md
+uptimerobot.md
+
+# documento del reto con correo personal del proceso de selección
+PRD2.md

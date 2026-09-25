@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hoja de ruta Reto 01</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <script>
+    (function () {
+      var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+    })();
+  </script>
+  <style>
+    :root { --accent: #2f6fed; --ok: #198754; --warn: #d97706; --bad: #dc3545; }
+    body { background: var(--bs-tertiary-bg); }
+    .app { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+    .hero h1 { font-weight: 700; letter-spacing: -.02em; }
+    .card { border: 1px solid var(--bs-border-color); border-radius: 14px; }
+
+    /* Stepper */
+    .stepper { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+    .step-btn {
+      flex: 1 0 auto; min-width: 92px; border: 0; background: transparent; padding: 6px 4px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--bs-secondary-color);
+      font-size: .78rem; line-height: 1.15; text-align: center;
+    }
+    .step-dot {
+      width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 600;
+      border: 2px solid var(--bs-border-color); background: var(--bs-body-bg); transition: all .15s;
+    }
+    .step-btn.active { color: var(--bs-body-color); font-weight: 600; }
+    .step-btn.active .step-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px rgba(47,111,237,.15); }
+    .step-btn.done .step-dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .step-btn.pending .step-dot { border-color: var(--warn); color: var(--warn); }
+    .step-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+    .step-pane { display: none; }
+    .step-pane.active { display: block; }
+    .hint { font-size: .86rem; color: var(--bs-secondary-color); }
+    .reco { font-size: .72rem; }
+    .form-check-input { cursor: pointer; }
+    .check-item { padding: 10px 12px; border: 1px solid var(--bs-border-color); border-radius: 10px; margin-bottom: 8px; }
+
+    .status-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--bs-border-color); }
+    .status-row:last-child { border-bottom: 0; }
+    .status-row i { font-size: 1.1rem; margin-top: 1px; }
+    .ready-banner { border-radius: 12px; padding: 16px; font-weight: 600; }
+
+    .timeline td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    pre.summary { white-space: pre-wrap; font-size: .8rem; max-height: 260px; overflow: auto; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero mb-4">
+    <span class="badge text-bg-primary mb-2">Reto 01 · Registro como Proveedor</span>
+    <h1 class="h3 mb-1">Hoja de ruta y checklist de arranque</h1>
+    <p class="text-body-secondary mb-0">Consigue cada recurso, márcalo y al final valida si ya puedes arrancar el reloj de 2 horas. Tu progreso se guarda en este navegador.</p>
+  </header>
+
+  <div class="alert alert-warning d-flex gap-2 align-items-start" role="note">
+    <i class="bi bi-shield-lock mt-1"></i>
+    <div><strong>Nunca escribas aquí tu API key ni contraseñas.</strong> Este formulario solo registra si ya las tienes listas. La clave va en tu <code>.env</code> local y en el panel de Render.</div>
+  </div>
+
+  <!-- STEPPER -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <nav class="stepper mb-3" id="stepper" aria-label="Pasos"></nav>
+      <div class="progress mb-4" role="progressbar" aria-label="Progreso" style="height:6px">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
+
+      <form id="form" novalidate>
+
+        <!-- 1 LLM -->
+        <section class="step-pane" data-step="1" data-title="LLM">
+          <h2 class="h5">1 · Proveedor de LLM y API key <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <p class="hint">Sin clave no hay agente en el link. Recomendado: Anthropic.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="llmProvider">Proveedor</label>
+              <select class="form-select" id="llmProvider" name="llmProvider">
+                <option value="">Selecciona…</option>
+                <option>Anthropic</option><option>OpenAI</option><option>Google</option>
+                <option>Azure OpenAI</option><option>Mistral</option><option>Local</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="llmModel">Modelo</label>
+              <input class="form-control" id="llmModel" name="llmModel" placeholder="ej. claude-sonnet-5">
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="llmKey"> Tengo la API key generada y con saldo</label>
+            <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="llmLimit"> Configuré un tope de gasto en la consola del proveedor <span class="hint">(opcional, recomendado)</span></label>
+          </div>
+        </section>
+
+        <!-- 2 Cuentas -->
+        <section class="step-pane" data-step="2" data-title="Cuentas">
+          <h2 class="h5">2 · GitHub y Render <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <p class="hint">Render mantiene un proceso vivo: sesiones en memoria y <code>out/</code> funcionan. Sin link: −10 puntos.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="ghUser">Usuario de GitHub</label>
+              <input class="form-control" id="ghUser" name="ghUser" placeholder="tu-usuario">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="ghRepo">URL del repo (si ya existe)</label>
+              <input class="form-control" id="ghRepo" name="ghRepo" placeholder="https://github.com/…/reto-01">
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="ghAuth"> Puedo hacer <code>git push</code> desde esta máquina (credenciales HTTPS listas)</label>
+            <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="render"> Cuenta de Render creada y verificada</label>
+            <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="renderGh"> Render autorizado para leer mis repos de GitHub</label>
+          </div>
+        </section>
+
+        <!-- 3 Runtime -->
+        <section class="step-pane" data-step="3" data-title="Runtime">
+          <h2 class="h5">3 · Runtime local <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <p class="hint">Detectado: Node v24.15, npm 11.12, git 2.54. Bun <strong>no</strong> está instalado.</p>
+          <div class="mb-3">
+            <div class="form-check"><input class="form-check-input" type="radio" name="runtime" id="rtNode" value="node" checked><label class="form-check-label" for="rtNode">Node + tsx <span class="badge text-bg-success reco">Recomendado</span></label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="runtime" id="rtBun" value="bun"><label class="form-check-label" for="rtBun">Instalar Bun (el PRD usa <code>bun run</code>)</label></div>
+          </div>
+          <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="runtimeOk"> Verifiqué en la terminal: <code>node --version</code> (o <code>bun --version</code>) responde</label>
+        </section>
+
+        <!-- 4 Fecha -->
+        <section class="step-pane" data-step="4" data-title="Fecha">
+          <h2 class="h5">4 · Fecha de referencia de vigencias <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <p class="hint">La Cámara de Comercio vence el <strong>2026-09-30</strong>. Si la defensa es después y usamos la fecha real, todos los casos se bloquean y <code>demo.ts</code> deja de ser determinista.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="fechaEjec">FECHA_EJECUCION</label>
+              <input type="date" class="form-control" id="fechaEjec" name="fechaEjec" value="2026-09-25">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="fechaDefensa">Fecha de la defensa (si la sabes)</label>
+              <input type="date" class="form-control" id="fechaDefensa" name="fechaDefensa">
+            </div>
+          </div>
+          <div id="fechaWarn" class="alert alert-danger mt-3 d-none small mb-0"></div>
+        </section>
+
+        <!-- 5 Seguridad -->
+        <section class="step-pane" data-step="5" data-title="Seguridad">
+          <h2 class="h5">5 · Protección del link <span class="badge text-bg-secondary reco">Decisión</span></h2>
+          <p class="hint">Un link público gasta tu clave. Una clave de acceso simple (documentada en el README) cuesta ~10 min.</p>
+          <div class="form-check"><input class="form-check-input" type="radio" name="accessKey" id="akYes" value="si" checked><label class="form-check-label" for="akYes">Sí, proteger con clave de acceso <span class="badge text-bg-success reco">Recomendado</span></label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="accessKey" id="akNo" value="no"><label class="form-check-label" for="akNo">No, link abierto (solo topes de tokens e iteraciones)</label></div>
+          <div class="row g-3 mt-1">
+            <div class="col-sm-4"><label class="form-label" for="maxIter">Iteraciones / turno</label><input type="number" class="form-control" id="maxIter" name="maxIter" value="25" min="1"></div>
+            <div class="col-sm-4"><label class="form-label" for="maxTok">Tokens / sesión</label><input type="number" class="form-control" id="maxTok" name="maxTok" value="50000" min="1000" step="1000"></div>
+            <div class="col-sm-4"><label class="form-label" for="rate">Peticiones / min por IP</label><input type="number" class="form-control" id="rate" name="rate" value="10" min="1"></div>
+          </div>
+        </section>
+
+        <!-- 6 Alcance -->
+        <section class="step-pane" data-step="6" data-title="Alcance">
+          <h2 class="h5">6 · Alcance <span class="badge text-bg-secondary reco">Decisión</span></h2>
+          <p class="hint">Si el tiempo aprieta se recorta primero el bonus y luego el PDF. xlsx, paquete, confirmación y link no se tocan.</p>
+          <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="scopePdf" checked> Incluir PDF (P1)</label>
+          <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="scopeEnvio" checked> Incluir <code>simular_envio</code> con confirmación (P1)</label>
+          <label class="form-check check-item"><input class="form-check-input me-2" type="checkbox" name="scopeBonus"> Intentar bonus <code>modulo/</code> (+10) si sobran los últimos 10 min</label>
+        </section>
+
+        <!-- 7 Entrega -->
+        <section class="step-pane" data-step="7" data-title="Entrega">
+          <h2 class="h5">7 · Forma de entrega <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="apellido">Apellido (para el zip)</label>
+              <input class="form-control" id="apellido" name="apellido" placeholder="apellido">
+              <div class="hint mt-1">Archivo: <code id="zipName">reto-01-&lt;apellido&gt;.zip</code></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="entrega">Formato</label>
+              <select class="form-select" id="entrega" name="entrega">
+                <option value="repo+zip">Repo Git con commits + zip de respaldo (recomendado)</option>
+                <option value="repo">Solo repo Git</option>
+                <option value="zip">Solo zip</option>
+              </select>
+            </div>
+          </div>
+          <label class="form-check check-item mt-3"><input class="form-check-input me-2" type="checkbox" name="gitCommits" checked> Haré commits por hito (5–6 commits)</label>
+        </section>
+
+        <!-- 8 Reloj -->
+        <section class="step-pane" data-step="8" data-title="Reloj">
+          <h2 class="h5">8 · Reloj de 2 horas <span class="badge text-bg-danger reco">Obligatorio</span></h2>
+          <p class="hint">Lo ideal es tener los pasos 1–3 listos <strong>antes</strong> de iniciar el reloj.</p>
+          <div class="form-check"><input class="form-check-input" type="radio" name="clock" id="clkNo" value="no" checked><label class="form-check-label" for="clkNo">Aún no he iniciado el reloj</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="clock" id="clkYes" value="si"><label class="form-check-label" for="clkYes">Ya inicié el reloj</label></div>
+          <div class="row g-3 mt-1" id="clockRow">
+            <div class="col-md-6"><label class="form-label" for="clockStart">Hora de inicio</label><input type="time" class="form-control" id="clockStart" name="clockStart"></div>
+            <div class="col-md-6"><label class="form-label">Hora límite</label><div class="form-control-plaintext fw-semibold" id="clockEnd">—</div></div>
+          </div>
+        </section>
+
+        <!-- 9 Validar -->
+        <section class="step-pane" data-step="9" data-title="Validar">
+          <h2 class="h5">Validación de arranque</h2>
+          <div id="readyBanner" class="ready-banner mb-3"></div>
+          <div id="statusList" class="mb-3"></div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" id="copyBtn"><i class="bi bi-clipboard me-1"></i>Copiar resumen para Claude</button>
+            <button type="button" class="btn btn-outline-danger" id="resetBtn"><i class="bi bi-arrow-counterclockwise me-1"></i>Reiniciar</button>
+          </div>
+          <pre class="summary bg-body-secondary rounded p-3 mt-3 mb-0" id="summary"></pre>
+        </section>
+
+        <div class="d-flex justify-content-between mt-4">
+          <button type="button" class="btn btn-outline-secondary" id="prevBtn"><i class="bi bi-arrow-left me-1"></i>Anterior</button>
+          <button type="button" class="btn btn-primary" id="nextBtn">Siguiente<i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Resultados esperados -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h2 class="h5 mb-3"><i class="bi bi-clipboard-data me-2"></i>Resultado esperado por caso</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Caso</th><th>Formato</th><th>Llenos / Faltantes / Confirmar</th><th>Listo para firma</th></tr></thead>
+          <tbody>
+            <tr><td><code>co-industrias-delta</code></td><td>xlsx</td><td>17 / 0 / 0</td><td><span class="badge text-bg-success">Sí</span> <span class="hint">advertir Cámara ≤ 30 días</span></td></tr>
+            <tr><td><code>ec-corp-andina</code></td><td>pdf</td><td>13 / 1 / 1 (RUC)</td><td><span class="badge text-bg-danger">No</span> <span class="hint">falta certificado cumplimiento tributario</span></td></tr>
+            <tr><td><code>hn-agroexport-sula</code></td><td>xlsx</td><td>9 / 1 / 1 (RTN)</td><td><span class="badge text-bg-danger">No</span> <span class="hint">parafiscales vencidos 31-ago</span></td></tr>
+            <tr><td><code>pa-logistica-istmo</code></td><td>portal</td><td>8 / 0 / 1 (RUC)</td><td><span class="badge text-bg-secondary">N/A</span> <span class="hint">solo valores-portal.md</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hoja de ruta -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="h5 mb-3"><i class="bi bi-signpost-split me-2"></i>Hoja de ruta (120 min)</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle timeline mb-0">
+          <thead><tr><th>Min</th><th>Entregable</th><th>Agentes</th></tr></thead>
+          <tbody>
+            <tr><td>0–10</td><td>Scaffold, <code>.gitignore</code>, <code>.env.example</code>, <code>/api/health</code> desplegado en Render</td><td>Salen · Oreo</td></tr>
+            <tr><td>10–45</td><td>5 tools <code>proveedor_*</code>, reglas RN1–RN5, logs; conocimiento en <code>src/knowledge/</code></td><td>Luna · Simon</td></tr>
+            <tr><td>45–55</td><td><code>demo.ts</code> con asserts por caso, errores HU-5 y determinismo</td><td>Coco</td></tr>
+            <tr><td>55–75</td><td>Adaptador LLM, <code>agent/prompt.md</code>, ciclo con topes y <code>pendingConfirmation</code></td><td>Kira · Luna</td></tr>
+            <tr><td>75–90</td><td>Front HTML: tarjetas de tools, banner de confirmación, chips de casos</td><td>Charlotte · Salen</td></tr>
+            <tr><td>90–100</td><td>Variables en Render, clave de acceso, prueba E2E con el prompt §11</td><td>Oreo · Max</td></tr>
+            <tr><td>100–115</td><td><code>SOLUCION.md</code> (10 secciones + diseño portal) y README</td><td>Simon · Kira</td></tr>
+            <tr><td>115–120</td><td>Quality gate final, <code>modulo/</code> si hay tiempo, entrega</td><td>Lucy · Oreo</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint mt-3 mb-0">Revisiones de Lucy en los minutos 25, 55, 85 y 105.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'reto01-hojaruta-v1';
+  var form = document.getElementById('form');
+  var panes = Array.prototype.slice.call(document.querySelectorAll('.step-pane'));
+  var stepper = document.getElementById('stepper');
+  var current = 0;
+
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+  function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+
+  function readForm() {
+    var d = {};
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (!el.name) return;
+      if (el.type === 'checkbox') d[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) d[el.name] = el.value; }
+      else d[el.name] = el.value.trim();
+    });
+    return d;
+  }
+  function writeForm(d) {
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (!el.name || !(el.name in d)) return;
+      if (el.type === 'checkbox') el.checked = !!d[el.name];
+      else if (el.type === 'radio') el.checked = el.value === d[el.name];
+      else el.value = d[el.name];
+    });
+  }
+
+  // Reglas de validación por paso (null = paso de decisión, siempre completo)
+  var checks = [
+    function (d) { return [
+      ['Proveedor LLM elegido', !!d.llmProvider],
+      ['Modelo definido', !!d.llmModel],
+      ['API key lista (fuera de este formulario)', !!d.llmKey]
+    ]; },
+    function (d) { return [
+      ['Usuario GitHub', !!d.ghUser],
+      ['git push funciona', !!d.ghAuth],
+      ['Cuenta Render', !!d.render],
+      ['Render conectado a GitHub', !!d.renderGh]
+    ]; },
+    function (d) { return [['Runtime verificado (' + (d.runtime === 'bun' ? 'Bun' : 'Node + tsx') + ')', !!d.runtimeOk]]; },
+    function (d) { return [['FECHA_EJECUCION fijada', !!d.fechaEjec]]; },
+    null, null,
+    function (d) { return [['Apellido para el zip', !!d.apellido]]; },
+    function (d) { return [['Reloj: ' + (d.clock === 'si' ? 'iniciado' + (d.clockStart ? ' a las ' + d.clockStart : ' (falta hora)') : 'aún no iniciado'), d.clock !== 'si' || !!d.clockStart]]; },
+    null
+  ];
+
+  function stepState(i, d) {
+    if (!checks[i]) return 'done';
+    return checks[i](d).every(function (c) { return c[1]; }) ? 'done' : 'pending';
+  }
+
+  function buildStepper() {
+    stepper.innerHTML = '';
+    panes.forEach(function (p, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'step-btn';
+      b.innerHTML = '<span class="step-dot">' + (i === panes.length - 1 ? '<i class="bi bi-check2-all"></i>' : (i + 1)) + '</span><span>' + p.dataset.title + '</span>';
+      b.addEventListener('click', function () { go(i); });
+      stepper.appendChild(b);
+    });
+  }
+
+  function render() {
+    var d = readForm();
+    var btns = stepper.children;
+    panes.forEach(function (p, i) {
+      p.classList.toggle('active', i === current);
+      var b = btns[i];
+      b.classList.remove('active', 'done', 'pending');
+      if (i === current) b.classList.add('active');
+      if (i < panes.length - 1) {
+        var st = stepState(i, d);
+        if (i !== current && (i < current || st === 'done')) b.classList.add(st);
+      }
+      b.setAttribute('aria-current', i === current ? 'step' : 'false');
+    });
+    document.getElementById('prevBtn').disabled = current === 0;
+    var next = document.getElementById('nextBtn');
+    next.classList.toggle('invisible', current === panes.length - 1);
+
+    // progreso = checks obligatorios cumplidos
+    var all = [];
+    checks.forEach(function (fn) { if (fn) all = all.concat(fn(d)); });
+    var ok = all.filter(function (c) { return c[1]; }).length;
+    document.getElementById('progressBar').style.width = Math.round(ok / all.length * 100) + '%';
+
+    // extras
+    document.getElementById('zipName').textContent = 'reto-01-' + (d.apellido ? d.apellido.toLowerCase().replace(/\s+/g, '-') : '<apellido>') + '.zip';
+    document.getElementById('clockRow').style.display = d.clock === 'si' ? '' : 'none';
+    var end = '—';
+    if (d.clockStart) { var t = d.clockStart.split(':'); var m = (+t[0] * 60 + +t[1] + 120) % 1440; end = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+    document.getElementById('clockEnd').textContent = end;
+    var fw = document.getElementById('fechaWarn');
+    if (d.fechaDefensa && d.fechaDefensa > '2026-09-30' && d.fechaEjec > '2026-09-30') {
+      fw.textContent = 'Con esta FECHA_EJECUCION la Cámara de Comercio sale vencida y todos los casos quedan bloqueados. Usa 2026-09-25.';
+      fw.classList.remove('d-none');
+    } else fw.classList.add('d-none');
+
+    if (current === panes.length - 1) renderValidation(d, all);
+  }
+
+  function renderValidation(d, all) {
+    var list = document.getElementById('statusList');
+    list.innerHTML = '';
+    all.forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = '<i class="bi ' + (c[1] ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger') + '"></i><span>' + c[0] + '</span>';
+      list.appendChild(row);
+    });
+    var missing = all.filter(function (c) { return !c[1]; }).length;
+    var banner = document.getElementById('readyBanner');
+    if (missing === 0) {
+      banner.className = 'ready-banner mb-3 bg-success-subtle text-success-emphasis border border-success-subtle';
+      banner.innerHTML = '<i class="bi bi-rocket-takeoff me-2"></i>Todo listo. Copia el resumen, pégalo en el chat y arrancamos.';
+    } else {
+      banner.className = 'ready-banner mb-3 bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+      banner.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Faltan ' + missing + ' recurso' + (missing > 1 ? 's' : '') + ' para arrancar.';
+    }
+    document.getElementById('summary').textContent = buildSummary(d, missing);
+  }
+
+  function buildSummary(d, missing) {
+    var yn = function (v) { return v ? 'sí' : 'no'; };
+    return [
+      'Hoja de ruta Reto 01 — estado: ' + (missing === 0 ? 'LISTO PARA ARRANCAR' : 'faltan ' + missing),
+      '1. LLM: ' + (d.llmProvider || '?') + ' / ' + (d.llmModel || '?') + ' · key lista: ' + yn(d.llmKey) + ' · tope gasto: ' + yn(d.llmLimit),
+      '2. GitHub: ' + (d.ghUser || '?') + (d.ghRepo ? ' (' + d.ghRepo + ')' : '') + ' · push: ' + yn(d.ghAuth) + ' · Render: ' + yn(d.render) + ' · Render↔GitHub: ' + yn(d.renderGh),
+      '3. Runtime: ' + (d.runtime === 'bun' ? 'Bun' : 'Node + tsx') + ' · verificado: ' + yn(d.runtimeOk),
+      '4. FECHA_EJECUCION: ' + (d.fechaEjec || '?') + (d.fechaDefensa ? ' · defensa: ' + d.fechaDefensa : ''),
+      '5. Clave de acceso al link: ' + (d.accessKey || 'si') + ' · topes: ' + d.maxIter + ' iter/turno, ' + d.maxTok + ' tokens/sesión, ' + d.rate + ' req/min',
+      '6. Alcance: PDF ' + yn(d.scopePdf) + ' · simular_envio ' + yn(d.scopeEnvio) + ' · bonus modulo/ ' + yn(d.scopeBonus),
+      '7. Entrega: ' + d.entrega + ' · apellido: ' + (d.apellido || '?') + ' · commits por hito: ' + yn(d.gitCommits),
+      '8. Reloj: ' + (d.clock === 'si' ? 'iniciado ' + (d.clockStart || '?') + ' → límite ' + document.getElementById('clockEnd').textContent : 'no iniciado')
+    ].join('\n');
+  }
+
+  function go(i) { current = Math.max(0, Math.min(panes.length - 1, i)); render(); try { localStorage.setItem(KEY + '-step', current); } catch (e) {} }
+
+  document.getElementById('prevBtn').addEventListener('click', function () { go(current - 1); });
+  document.getElementById('nextBtn').addEventListener('click', function () { go(current + 1); });
+  form.addEventListener('input', function () { save(readForm()); render(); });
+  form.addEventListener('change', function () { save(readForm()); render(); });
+
+  document.getElementById('copyBtn').addEventListener('click', function () {
+    var txt = document.getElementById('summary').textContent;
+    var btn = this;
+    function done() { btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar resumen para Claude'; }, 1800); }
+    if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, function () {});
+    else { var r = document.createRange(); r.selectNode(document.getElementById('summary')); getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy'); done(); }
+  });
+  document.getElementById('resetBtn').addEventListener('click', function () {
+    if (!confirm('¿Borrar todo el progreso de este checklist?')) return;
+    try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '-step'); } catch (e) {}
+    location.reload();
+  });
+
+  buildStepper();
+  writeForm(load());
+  try { current = +(localStorage.getItem(KEY + '-step') || 0) || 0; } catch (e) {}
+  go(current);
+})();
+</script>
+</body>
+</html>
