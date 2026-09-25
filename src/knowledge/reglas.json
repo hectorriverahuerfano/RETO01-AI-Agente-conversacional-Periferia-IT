@@ -1,0 +1,21 @@
+{
+  "identificador_tributario_por_pais": {
+    "CO": "NIT",
+    "EC": "RUC",
+    "PE": "RUC",
+    "PA": "RUC",
+    "HN": "RTN"
+  },
+  "pais_del_maestro": "CO",
+  "clave_identificador": "nit",
+  "umbral_lleno": 0.8,
+  "umbral_confirmacion": 0.5,
+  "dias_alerta_vencimiento": 7,
+  "claves_bancarias": ["banco."],
+  "palabras_vacias": ["de", "del", "la", "el", "los", "las", "o", "y", "e", "en", "para", "por", "su"],
+  "notas_por_clave": {
+    "ingresos_ultimo_ano.valor": "Valor en pesos colombianos (COP), año 2025.",
+    "pais": "Código ISO del país de Periferia (CO = Colombia).",
+    "contacto_comercial.email": "Correo del contacto comercial."
+  }
+}
