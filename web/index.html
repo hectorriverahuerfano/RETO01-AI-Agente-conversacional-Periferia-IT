@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro como Proveedor</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <!-- Pantalla de acceso -->
+  <main id="acceso" class="acceso" hidden>
+    <form id="formAcceso" class="tarjeta-acceso">
+      <h1>Agente de Registro como Proveedor</h1>
+      <p class="sutil">Ingresa la clave de acceso que está en el README.</p>
+      <label for="clave">Clave de acceso</label>
+      <input id="clave" type="password" autocomplete="current-password" required>
+      <p id="errorAcceso" class="error" role="alert" hidden></p>
+      <button type="submit" class="primario">Entrar</button>
+    </form>
+  </main>
+
+  <!-- Chat -->
+  <div id="app" class="app" hidden>
+    <header class="barra">
+      <div>
+        <strong>Registro como Proveedor</strong>
+        <span id="modelo" class="sutil"></span>
+      </div>
+      <div class="acciones-barra">
+        <button id="nuevaSesion" type="button" class="secundario">Nueva sesión</button>
+        <button id="cambiarClave" type="button" class="secundario">Cambiar clave</button>
+      </div>
+    </header>
+
+    <section id="historial" class="historial" role="log" aria-live="polite" aria-label="Conversación">
+      <div class="bienvenida">
+        <p>Hola. Puedo leer una solicitud de registro, llenar el formulario desde el repositorio maestro y armar el paquete para firma. Nunca envío nada sin tu confirmación.</p>
+        <p class="sutil">Prueba con uno de los casos:</p>
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <div id="banner" class="banner" role="alert" hidden>
+      <span>⚠️ <strong>Requiere tu confirmación.</strong> El agente espera que confirmes antes de simular el envío.</span>
+      <div class="acciones-banner">
+        <button type="button" class="primario" data-texto="Confirmo, envía el paquete.">Confirmar envío</button>
+        <button type="button" class="secundario" data-texto="No envíes nada todavía.">Cancelar</button>
+      </div>
+    </div>
+
+    <form id="formChat" class="entrada">
+      <label for="mensaje" class="solo-lector">Mensaje</label>
+      <textarea id="mensaje" rows="2" placeholder='Ej.: Procesa el caso "ec-corp-andina"' required></textarea>
+      <button id="enviar" type="submit" class="primario">Enviar</button>
+    </form>
+  </div>
+</body>
+</html>
