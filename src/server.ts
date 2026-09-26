@@ -7,7 +7,8 @@ import { Hono, type Context, type Next } from "hono"
 import { bodyLimit } from "hono/body-limit"
 import { z } from "zod"
 import { ejecutarTurno } from "./agent/ciclo.ts"
-import { buscarSesion, obtenerSesion, PATRON_SESION } from "./agent/sesiones.ts"
+import { buscarSesion, eliminarSesion, obtenerSesion, PATRON_SESION } from "./agent/sesiones.ts"
+import { olvidarSesion } from "./domain/confirmaciones.ts"
 import { config } from "./config.ts"
 import { mensajeDeError } from "./domain/resultado.ts"
 import type { LlmAdapter } from "./llm/adapter.ts"
@@ -49,19 +50,22 @@ async function exigirClave(c: Context, next: Next) {
   await next()
 }
 
-/** Límite de peticiones por IP y minuto para que nadie gaste la clave del modelo sin control. */
-const ventanas = new Map<string, { inicio: number; cuenta: number }>()
-async function limitarTasa(c: Context, next: Next) {
-  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local"
-  const ahora = Date.now()
-  const v = ventanas.get(ip)
-  if (!v || ahora - v.inicio > 60_000) ventanas.set(ip, { inicio: ahora, cuenta: 1 })
-  else if (++v.cuenta > config.rateLimitPorMin) return c.json({ error: "Demasiadas peticiones. Espera un minuto." }, 429)
-  await next()
+/** Límite de peticiones por IP y minuto; cada ruta lleva su propio contador. */
+function limitador(maxPorMin: number) {
+  const ventanas = new Map<string, { inicio: number; cuenta: number }>()
+  return async (c: Context, next: Next) => {
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local"
+    const ahora = Date.now()
+    const v = ventanas.get(ip)
+    if (!v || ahora - v.inicio > 60_000) ventanas.set(ip, { inicio: ahora, cuenta: 1 })
+    else if (++v.cuenta > maxPorMin) return c.json({ error: "Demasiadas peticiones. Espera un minuto." }, 429)
+    await next()
+  }
 }
 
-app.use("/api/chat", exigirClave, limitarTasa, bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: "Mensaje demasiado largo." }, 413) }))
-app.use("/api/sessions/*", exigirClave)
+// El chat gasta la clave del modelo; el historial solo lee memoria, por eso tiene más margen.
+app.use("/api/chat", exigirClave, limitador(config.rateLimitPorMin), bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: "Mensaje demasiado largo." }, 413) }))
+app.use("/api/sessions/*", exigirClave, limitador(config.rateLimitPorMin * 3))
 
 const CuerpoChat = z.object({
   sessionId: z.string().regex(PATRON_SESION),
@@ -89,6 +93,16 @@ app.get("/api/sessions/:id", (c) => {
   const sesion = PATRON_SESION.test(id) ? buscarSesion(id) : undefined
   if (!sesion) return c.json({ error: "Sesión no encontrada." }, 404)
   return c.json({ id: sesion.id, tokens: sesion.tokens, historial: sesion.historial })
+})
+
+// Borra una conversación del servidor. Responde 204 exista o no, para no revelar qué ids existen.
+app.delete("/api/sessions/:id", (c) => {
+  const id = c.req.param("id")
+  if (!PATRON_SESION.test(id)) return c.json({ error: "Identificador inválido." }, 400)
+  if (enCurso.has(id)) return c.json({ error: "Hay un mensaje en proceso en esta sesión." }, 409)
+  eliminarSesion(id)
+  olvidarSesion(id)
+  return c.body(null, 204)
 })
 
 app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "Ruta no encontrada." }, 404) : c.text("No encontrado", 404)))

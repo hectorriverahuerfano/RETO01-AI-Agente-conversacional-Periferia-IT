@@ -107,6 +107,7 @@ function setOcupado(valor) {
 async function enviar(texto, mostrar = true) {
   if (ocupado || !texto.trim()) return
   if (mostrar) mensaje("usuario", texto)
+  registrarConversacion(texto)
   $("banner").hidden = true
   $("formCorreo").hidden = true
   setOcupado(true)
@@ -185,13 +186,125 @@ $("formCorreo").addEventListener("submit", (e) => {
   enviar(`Envíame el paquete a ${correo}`)
 })
 $("cambiarClave").addEventListener("click", () => { guardarClave(""); mostrarAcceso() })
-$("nuevaSesion").addEventListener("click", () => {
-  sesionId = nuevaSesionId()
+$("nuevaSesion").addEventListener("click", nuevaConversacion)
+
+// --- Historial de conversaciones (HU-8) ---
+// En este navegador solo se guarda { id, título, fecha }; el contenido vive en el servidor.
+const CLAVE_CONVERSACIONES = "reto01-conversaciones"
+const MAX_CONVERSACIONES = 20
+
+function leerConversaciones() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_CONVERSACIONES) || "[]") } catch { return [] }
+}
+function guardarConversaciones(lista) {
+  try { lista.length ? localStorage.setItem(CLAVE_CONVERSACIONES, JSON.stringify(lista)) : localStorage.removeItem(CLAVE_CONVERSACIONES) } catch { /* sin almacenamiento */ }
+}
+
+/** Título corto y sin correos a partir del primer mensaje. */
+function tituloDe(texto) {
+  const limpio = texto.replace(/\S+@\S+/g, "[correo]").replace(/\s+/g, " ").trim()
+  return limpio.length > 40 ? limpio.slice(0, 40) + "…" : limpio
+}
+
+function registrarConversacion(texto) {
+  const lista = leerConversaciones()
+  if (lista.some((c) => c.id === sesionId)) return
+  lista.unshift({ id: sesionId, titulo: tituloDe(texto), fecha: new Date().toISOString() })
+  guardarConversaciones(lista.slice(0, MAX_CONVERSACIONES))
+}
+
+function limpiarChat() {
   document.querySelectorAll("#historial .msg, #historial .pensando").forEach((n) => n.remove())
   $("banner").hidden = true
   $("formCorreo").hidden = true
+}
+
+function modoLectura(activo) {
+  $("lectura").hidden = !activo
+  $("formChat").hidden = activo
+  $("chips").hidden = activo
+}
+
+function nuevaConversacion() {
+  sesionId = nuevaSesionId()
+  limpiarChat()
+  modoLectura(false)
   $("mensaje").focus()
+}
+
+function pintarConversaciones() {
+  const lista = leerConversaciones()
+  const ul = $("listaConversaciones")
+  ul.innerHTML = ""
+  $("sinConversaciones").hidden = lista.length > 0
+  $("borrarHistorial").hidden = lista.length === 0
+  for (const c of lista) {
+    const li = document.createElement("li")
+    const b = document.createElement("button")
+    b.type = "button"
+    b.className = "secundario"
+    const fecha = new Date(c.fecha).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
+    b.innerHTML = `<span>${escapar(c.titulo || "Sin título")}</span><span class="fecha">${escapar(fecha)}</span>`
+    b.onclick = () => abrirConversacion(c.id)
+    li.appendChild(b)
+    ul.appendChild(li)
+  }
+}
+
+function abrirPanel() {
+  $("avisoConversacion").hidden = true
+  pintarConversaciones()
+  $("conversaciones").showModal()
+  $("abrirConversaciones").setAttribute("aria-expanded", "true")
+}
+
+function cerrarPanel() {
+  $("conversaciones").close()
+}
+
+async function abrirConversacion(id) {
+  const r = await fetch(`/api/sessions/${id}`, { headers: { "x-access-key": leerClave() } }).catch(() => null)
+  if (!r || r.status === 404) {
+    guardarConversaciones(leerConversaciones().filter((c) => c.id !== id))
+    pintarConversaciones()
+    $("avisoConversacion").textContent = "Esta conversación ya no está disponible porque el servidor se reinició."
+    $("avisoConversacion").hidden = false
+    return
+  }
+  if (r.status === 401) { cerrarPanel(); mostrarAcceso("La clave de acceso ya no es válida."); return }
+  const datos = await r.json()
+  cerrarPanel()
+  limpiarChat()
+  for (const e of datos.historial || []) {
+    mensaje(e.rol === "user" ? "usuario" : "agente", e.texto, e.toolCalls || [], false)
+  }
+  // Solo lectura hasta que la persona decida continuar: evita confirmar pasos viejos sin querer.
+  sesionId = id
+  modoLectura(true)
+  $("continuarConversacion").focus()
+}
+
+async function borrarHistorial() {
+  if (!confirm("¿Borrar todo el historial? No se puede deshacer.")) return
+  const lista = leerConversaciones()
+  // También se borran del servidor: pueden contener el correo que escribió la persona.
+  await Promise.all(lista.map((c) =>
+    fetch(`/api/sessions/${c.id}`, { method: "DELETE", headers: { "x-access-key": leerClave() } }).catch(() => null)))
+  guardarConversaciones([])
+  pintarConversaciones()
+  nuevaConversacion()
+  cerrarPanel()
+}
+
+$("abrirConversaciones").addEventListener("click", abrirPanel)
+$("cerrarConversaciones").addEventListener("click", cerrarPanel)
+$("conversaciones").addEventListener("close", () => {
+  $("abrirConversaciones").setAttribute("aria-expanded", "false")
+  if ($("lectura").hidden) $("abrirConversaciones").focus()
 })
+$("borrarHistorial").addEventListener("click", borrarHistorial)
+$("continuarConversacion").addEventListener("click", () => { modoLectura(false); $("mensaje").focus() })
+$("salirLectura").addEventListener("click", nuevaConversacion)
 
 for (const caso of CASOS) {
   const b = document.createElement("button")

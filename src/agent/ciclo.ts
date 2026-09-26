@@ -16,6 +16,8 @@ export interface RespuestaTurno {
   pideCorreo: boolean
 }
 
+const VIGENCIA_CONFIRMACION_MS = 10 * 60 * 1000
+
 const todas: DefinicionHerramienta[] = herramientas.map((h) => ({ nombre: h.nombre, descripcion: h.descripcion, parametros: h.parametros }))
 
 /** Sin remitente configurado, el modelo ni siquiera ve la herramienta de correo real. */
@@ -52,6 +54,7 @@ async function ejecutarLlamada(sesion: Sesion, llamada: LlamadaHerramienta, raiz
   // Tras armar el paquete (o si un envío fue rechazado) el turno termina pidiendo confirmación.
   if (caso && ((llamada.nombre === "proveedor_armar_paquete" && r.ok) || (llamada.nombre === "proveedor_simular_envio" && !r.ok && r.error === "requiere confirmación explícita"))) {
     sesion.pendiente = caso
+    sesion.pendienteDesde = Date.now()
   }
   // Si el envío real falló por algo reintentable, se vuelve a mostrar el campo de correo.
   if (llamada.nombre === "proveedor_enviar_correo" && !r.ok && !/límite|máximo|dominios/.test(r.error ?? "")) sesion.ofrecerCorreo = true
@@ -66,7 +69,9 @@ async function ejecutarLlamada(sesion: Sesion, llamada: LlamadaHerramienta, raiz
 /** CA3/RN4: solo el mensaje inmediatamente posterior a la pregunta puede confirmar. */
 function procesarConfirmacion(sesion: Sesion, texto: string): void {
   revocarPermisos(sesion.id)
-  if (sesion.pendiente && esConfirmacion(texto)) otorgarConfirmacion(sesion.id, sesion.pendiente)
+  // Una conversación retomada horas después no confirma un envío viejo.
+  const vigente = sesion.pendienteDesde !== undefined && Date.now() - sesion.pendienteDesde < VIGENCIA_CONFIRMACION_MS
+  if (sesion.pendiente && vigente && esConfirmacion(texto)) otorgarConfirmacion(sesion.id, sesion.pendiente)
   // HU-7: el único destinatario válido es el correo que el usuario escribió en este mensaje.
   const correo = correoDelMensaje(texto)
   if (correo) otorgarPermiso(sesion.id, "correo", correo)

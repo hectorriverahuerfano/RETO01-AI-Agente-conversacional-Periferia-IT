@@ -92,6 +92,15 @@ El PRD excluye la integración real con correo (§3.2) y define "enviar" como es
 - **Seguridad del MIME:** se rechazan saltos de línea, comas y punto y coma en destinatario y asunto (inyección de cabeceras); nombres de adjuntos saneados.
 - **Riesgo aceptado:** el link es público, así que alguien con la clave de acceso podría usar la cuenta para enviar hasta el tope diario. Mitigado con los topes, la lista de dominios y el interruptor.
 
+## 6.2 Extensión HU-8: historial de conversaciones
+
+Cada ingreso abre una conversación nueva. Las anteriores aparecen en el botón **Conversaciones**:
+- **Dónde vive la lista:** en el navegador (`localStorage`), solo `{ id, título, fecha }`. El título se recorta a 40 caracteres y se le quitan los correos. El contenido vive en la memoria del servidor y se pide con `GET /api/sessions/:id`. Como la clave de acceso es compartida y no hay usuarios, una lista en el servidor mezclaría las conversaciones de todos los evaluadores.
+- **Solo lectura primero:** una conversación vieja se abre en solo lectura, con el botón "Continuar esta conversación", para no confirmar pasos viejos sin querer.
+- **Confirmaciones con vencimiento:** una confirmación pendiente vence a los 10 minutos. Un "sí" en una conversación retomada horas después no confirma un envío viejo.
+- **Borrar historial:** borra la lista local y las conversaciones del servidor (`DELETE /api/sessions/:id`, con clave de acceso, límite de peticiones y validación del id). Responde 204 exista o no la sesión, para no revelar qué ids existen, y 409 si hay un mensaje en curso.
+- **Si el servidor se reinició:** la conversación aparece como "ya no disponible" y se quita de la lista.
+
 ## 7. Supuestos
 
 1. **Fecha de ejecución:** `FECHA_EJECUCION=2026-09-25` fija la evaluación de vigencias. La Cámara de Comercio vence el 2026-09-30; con la fecha real, una defensa posterior bloquearía todos los casos.
@@ -116,6 +125,7 @@ El PRD excluye la integración real con correo (§3.2) y define "enviar" como es
 | HU-4 Paquete para firma | Hecho | Integración con firma electrónica |
 | HU-5 Errores | Hecho | Alertas de operación |
 | **HU-7 Copia real por correo** (extensión fuera del PRD) | Hecho, apagado por defecto (`GMAIL_ENABLED`) | Cuenta Gmail dedicada; cola persistente de envíos |
+| **HU-8 Historial de conversaciones** (extensión) | Hecho | Persistencia real con identidad de usuario |
 | Bonus `modulo/` | Hecho | Generado desde las mismas fuentes; `demo.ts` verifica que no difieran |
 
 ## 9. Uso de IA
@@ -168,6 +178,19 @@ Hector pidió usar todos los agentes. Cada uno participó en el momento en que s
 - **Lista de dominios** (Max la exigía): quedó configurable. Hector decide si la activa.
 - **Adjuntar el formulario con datos bancarios** (Simon lo prohibía por RN2): se adjunta una copia con esos valores ocultos.
 - **Tope persistente** (Kira y Max): archivo en `out/`, que sobrevive reinicios del proceso pero no un redespliegue en Render; queda declarado.
+
+### Ronda 4: historial de conversaciones (HU-8)
+
+Pregunta a los agentes: ¿cada ingreso debe borrar la conversación anterior, mostrarla como historial (B) o mostrarla con opción de borrarla del servidor (C)?
+
+| Agente | Recomendación | Aporte que quedó |
+|---|---|---|
+| **Simon** | B, con "Limpiar lista" solo local | Criterios de aceptación: título y fecha, "ya no disponible" tras reinicio, aislamiento por navegador |
+| **Charlotte** | B, borrado solo local | Botón "Conversaciones" con panel lateral (pantalla completa en móvil), solo lectura con "Continuar", textos y accesibilidad |
+| **Kira** | B + C | La lista en el navegador; `DELETE` que responde 204 siempre y 409 si hay mensaje en curso. Detectó que una confirmación vieja podía aplicarse en una conversación retomada: se agregó vencimiento de 10 minutos |
+| **Max** | C con condiciones | Límite de peticiones también en `/api/sessions`; no guardar contenido ni correos en el navegador; título sin correos; actualizar la Política de Privacidad |
+
+**Desacuerdo resuelto:** Simon y Charlotte preferían borrar solo la lista local; Kira y Max, borrar también en el servidor. Se eligió borrar en el servidor, porque las conversaciones pueden contener correos, con las protecciones de Kira y Max. El historial tiene su propio contador de peticiones, para que abrir varias conversaciones no bloquee el chat.
 
 ## 10. Riesgos de producción y mitigación
 

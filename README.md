@@ -62,6 +62,7 @@ La clave de acceso se envía en el header `x-access-key`.
 |---|---|---|
 | `POST` | `/api/chat` | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation }` |
 | `GET` | `/api/sessions/:id` | Historial completo de la sesión |
+| `DELETE` | `/api/sessions/:id` | Borra la conversación del servidor (204 exista o no) |
 | `GET` | `/api/health` | `{ ok: true, provider, model }` (sin clave de acceso) |
 
 ## Estructura

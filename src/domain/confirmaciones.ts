@@ -34,6 +34,12 @@ export function huboEnvioSimulado(sessionId: string, caso: string): boolean {
   return simulados.get(sessionId)?.has(caso) ?? false
 }
 
+/** Al borrar una sesión se olvida también lo que habilitó. */
+export function olvidarSesion(sessionId: string): void {
+  otorgados.delete(sessionId)
+  simulados.delete(sessionId)
+}
+
 export function revocarPermisos(sessionId: string): void {
   otorgados.delete(sessionId)
 }

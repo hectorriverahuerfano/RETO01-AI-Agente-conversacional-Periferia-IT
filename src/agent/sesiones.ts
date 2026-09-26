@@ -24,6 +24,8 @@ export interface Sesion {
   tokens: number
   /** Caso cuyo envío espera confirmación en el próximo mensaje del usuario. */
   pendiente?: string
+  /** Momento en que se pidió la confirmación: vence a los 10 minutos. */
+  pendienteDesde?: number
   /** Hubo un envío simulado en este turno: se ofrece el envío real por correo (HU-7). */
   ofrecerCorreo?: boolean
 }
@@ -43,6 +45,10 @@ export function obtenerSesion(id: string): Sesion {
     sesiones.set(id, s)
   }
   return s
+}
+
+export function eliminarSesion(id: string): void {
+  sesiones.delete(id)
 }
 
 export function buscarSesion(id: string): Sesion | undefined {

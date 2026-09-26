@@ -29,6 +29,7 @@
         <span id="modelo" class="sutil"></span>
       </div>
       <div class="acciones-barra">
+        <button id="abrirConversaciones" type="button" class="secundario" aria-haspopup="dialog" aria-expanded="false" aria-controls="conversaciones">Conversaciones</button>
         <button id="nuevaSesion" type="button" class="secundario">Nueva sesión</button>
         <button id="cambiarClave" type="button" class="secundario">Cambiar clave</button>
       </div>
@@ -50,6 +51,14 @@
       </div>
     </div>
 
+    <div id="lectura" class="lectura" role="status" hidden>
+      <span>Estás viendo una conversación anterior.</span>
+      <div class="acciones-banner">
+        <button id="continuarConversacion" type="button" class="primario">Continuar esta conversación</button>
+        <button id="salirLectura" type="button" class="secundario">Nueva conversación</button>
+      </div>
+    </div>
+
     <form id="formCorreo" class="correo" hidden>
       <label for="correo">¿Quieres recibir el paquete en tu correo?</label>
       <div class="fila-correo">
@@ -65,5 +74,17 @@
       <button id="enviar" type="submit" class="primario">Enviar</button>
     </form>
   </div>
+
+  <dialog id="conversaciones" class="cajon" aria-labelledby="tituloConversaciones">
+    <div class="cajon-cabecera">
+      <h2 id="tituloConversaciones">Conversaciones en este navegador</h2>
+      <button id="cerrarConversaciones" type="button" class="secundario" aria-label="Cerrar">✕</button>
+    </div>
+    <p id="avisoConversacion" class="error" role="alert" hidden></p>
+    <p id="sinConversaciones" class="sutil">Aún no hay conversaciones guardadas.</p>
+    <ul id="listaConversaciones" class="lista-conversaciones"></ul>
+    <p class="sutil">Se guardan solo en este navegador. Si el servidor se reinicia, las conversaciones dejan de estar disponibles.</p>
+    <button id="borrarHistorial" type="button" class="secundario peligro">Borrar historial</button>
+  </dialog>
 </body>
 </html>
