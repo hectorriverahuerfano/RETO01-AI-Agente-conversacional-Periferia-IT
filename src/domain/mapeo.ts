@@ -107,6 +107,17 @@ export function mapearCampos(etiquetas: string[], pais: string, maestro: Maestro
   }
 }
 
+/** Copia del mapeo con los datos bancarios ocultos (RN2), para lo que sale por correo. */
+export function sinDatosBancarios(mapeo: Mapeo, esBancaria: (clave: string) => boolean): Mapeo {
+  const ocultar = (c: CampoMapeado): CampoMapeado =>
+    c.ruta && esBancaria(c.ruta) && c.valor ? { ...c, valor: "(se entrega por canal seguro)" } : c
+  return {
+    llenos: mapeo.llenos.map(ocultar),
+    faltantes: mapeo.faltantes,
+    requiere_confirmacion: mapeo.requiere_confirmacion.map(ocultar),
+  }
+}
+
 /** Valor a escribir en el formulario: los campos por confirmar llevan el valor propuesto (RN1). */
 export function valorParaFormulario(mapeo: Mapeo, etiqueta: string): string {
   const campo = [...mapeo.llenos, ...mapeo.requiere_confirmacion].find((c) => c.etiqueta === etiqueta)

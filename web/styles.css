@@ -67,6 +67,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .banner { margin: 0 16px; padding: 10px 14px; border: 2px solid var(--ambar-borde); background: var(--ambar-fondo); border-radius: 10px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .acciones-banner { display: flex; gap: 8px; }
 
+.correo { margin: 8px 16px 0; padding: 10px 14px; border: 1px solid var(--acento); border-radius: 10px; background: var(--superficie); display: grid; gap: 6px; }
+.correo label { font-weight: 600; }
+.correo p { margin: 0; }
+.fila-correo { display: flex; gap: 8px; flex-wrap: wrap; }
+.fila-correo input { flex: 1; min-width: 200px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; background: var(--fondo); }
+
 .entrada { display: flex; gap: 8px; padding: 12px 16px 16px; }
 .entrada textarea { flex: 1; resize: vertical; min-height: 44px; padding: 10px; border: 1px solid var(--borde); border-radius: 10px; background: var(--superficie); }
 @media (max-width: 480px) {

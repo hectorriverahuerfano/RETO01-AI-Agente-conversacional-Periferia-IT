@@ -24,6 +24,8 @@ export interface Sesion {
   tokens: number
   /** Caso cuyo envío espera confirmación en el próximo mensaje del usuario. */
   pendiente?: string
+  /** Hubo un envío simulado en este turno: se ofrece el envío real por correo (HU-7). */
+  ofrecerCorreo?: boolean
 }
 
 export const PATRON_SESION = /^[A-Za-z0-9_-]{8,64}$/

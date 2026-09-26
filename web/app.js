@@ -99,7 +99,7 @@ function setOcupado(valor) {
   ocupado = valor
   $("enviar").disabled = valor
   $("mensaje").disabled = valor
-  document.querySelectorAll("#banner button, #chips button").forEach((b) => (b.disabled = valor))
+  document.querySelectorAll("#banner button, #chips button, #formCorreo button").forEach((b) => (b.disabled = valor))
   $("historial").setAttribute("aria-busy", String(valor))
 }
 
@@ -108,6 +108,7 @@ async function enviar(texto, mostrar = true) {
   if (ocupado || !texto.trim()) return
   if (mostrar) mensaje("usuario", texto)
   $("banner").hidden = true
+  $("formCorreo").hidden = true
   setOcupado(true)
   const pensando = document.createElement("div")
   pensando.className = "pensando"
@@ -125,12 +126,13 @@ async function enviar(texto, mostrar = true) {
     if (!r.ok) return error(datos.error || `Error ${r.status}.`, texto)
     mensaje("agente", datos.reply, datos.toolCalls || [], datos.needsConfirmation)
     $("banner").hidden = !datos.needsConfirmation
+    $("formCorreo").hidden = !datos.pideCorreo
   } catch {
     error("No hay conexión con el servidor.", texto)
   } finally {
     pensando.remove()
     setOcupado(false)
-    $("mensaje").focus()
+    ;($("formCorreo").hidden ? $("mensaje") : $("correo")).focus()
   }
 }
 
@@ -174,11 +176,20 @@ $("banner").addEventListener("click", (e) => {
   const texto = e.target.closest("button")?.dataset.texto
   if (texto) enviar(texto)
 })
+$("formCorreo").addEventListener("submit", (e) => {
+  e.preventDefault()
+  const correo = $("correo").value.trim()
+  if (!$("correo").checkValidity()) { $("correo").setAttribute("aria-invalid", "true"); return }
+  $("correo").removeAttribute("aria-invalid")
+  // El correo va literal en el mensaje: el servidor solo acepta el destinatario que escribió el usuario.
+  enviar(`Envíame el paquete a ${correo}`)
+})
 $("cambiarClave").addEventListener("click", () => { guardarClave(""); mostrarAcceso() })
 $("nuevaSesion").addEventListener("click", () => {
   sesionId = nuevaSesionId()
   document.querySelectorAll("#historial .msg, #historial .pensando").forEach((n) => n.remove())
   $("banner").hidden = true
+  $("formCorreo").hidden = true
   $("mensaje").focus()
 })
 

@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { config } from "../config.ts"
-import { esConfirmacion, otorgarConfirmacion, revocarConfirmaciones } from "../domain/confirmaciones.ts"
+import { correoDelMensaje, esConfirmacion, otorgarConfirmacion, otorgarPermiso, revocarPermisos } from "../domain/confirmaciones.ts"
+import type { Remitente } from "../domain/correo.ts"
 import { mensajeDeError } from "../domain/resultado.ts"
 import type { DefinicionHerramienta, LlamadaHerramienta, LlmAdapter, Mensaje } from "../llm/adapter.ts"
 import { buscarHerramienta, herramientas } from "../tools/registro.ts"
@@ -11,9 +12,16 @@ export interface RespuestaTurno {
   reply: string
   toolCalls: ToolCallVisible[]
   needsConfirmation: boolean
+  /** El front muestra el campo de correo (HU-7) tras un envío simulado. */
+  pideCorreo: boolean
 }
 
-const definiciones: DefinicionHerramienta[] = herramientas.map((h) => ({ nombre: h.nombre, descripcion: h.descripcion, parametros: h.parametros }))
+const todas: DefinicionHerramienta[] = herramientas.map((h) => ({ nombre: h.nombre, descripcion: h.descripcion, parametros: h.parametros }))
+
+/** Sin remitente configurado, el modelo ni siquiera ve la herramienta de correo real. */
+function definicionesPara(remitente?: Remitente): DefinicionHerramienta[] {
+  return remitente ? todas : todas.filter((d) => d.nombre !== "proveedor_enviar_correo")
+}
 
 /** System prompt = comportamiento (agent/prompt.md) + conocimiento (src/knowledge/registro-proveedor.md). */
 async function systemPrompt(raiz: string): Promise<string> {
@@ -34,10 +42,10 @@ function casoDe(args: unknown): string | undefined {
   return typeof caso === "string" ? caso : undefined
 }
 
-async function ejecutarLlamada(sesion: Sesion, llamada: LlamadaHerramienta, raiz: string): Promise<{ contenido: string; visible: ToolCallVisible }> {
+async function ejecutarLlamada(sesion: Sesion, llamada: LlamadaHerramienta, raiz: string, remitente?: Remitente): Promise<{ contenido: string; visible: ToolCallVisible }> {
   const herramienta = buscarHerramienta(llamada.nombre)
   const contenido = herramienta
-    ? await herramienta.ejecutar(llamada.args, { directory: raiz, sessionId: sesion.id })
+    ? await herramienta.ejecutar(llamada.args, { directory: raiz, sessionId: sesion.id, remitente })
     : JSON.stringify({ ok: false, error: `herramienta desconocida: ${llamada.nombre}` })
   const r = JSON.parse(contenido) as { ok: boolean; error?: string; data?: { resumen?: string } }
   const caso = casoDe(llamada.args)
@@ -45,15 +53,23 @@ async function ejecutarLlamada(sesion: Sesion, llamada: LlamadaHerramienta, raiz
   if (caso && ((llamada.nombre === "proveedor_armar_paquete" && r.ok) || (llamada.nombre === "proveedor_simular_envio" && !r.ok && r.error === "requiere confirmación explícita"))) {
     sesion.pendiente = caso
   }
-  if (llamada.nombre === "proveedor_simular_envio" && r.ok) sesion.pendiente = undefined
+  // Si el envío real falló por algo reintentable, se vuelve a mostrar el campo de correo.
+  if (llamada.nombre === "proveedor_enviar_correo" && !r.ok && !/límite|máximo|dominios/.test(r.error ?? "")) sesion.ofrecerCorreo = true
+  if (llamada.nombre === "proveedor_simular_envio" && r.ok) {
+    sesion.pendiente = undefined
+    sesion.ofrecerCorreo = true
+  }
   const visible = { nombre: llamada.nombre, args: enmascarar(llamada.args), ok: r.ok, resumen: r.ok ? r.data?.resumen ?? "ok" : r.error ?? "error" }
   return { contenido, visible }
 }
 
 /** CA3/RN4: solo el mensaje inmediatamente posterior a la pregunta puede confirmar. */
 function procesarConfirmacion(sesion: Sesion, texto: string): void {
-  revocarConfirmaciones(sesion.id)
+  revocarPermisos(sesion.id)
   if (sesion.pendiente && esConfirmacion(texto)) otorgarConfirmacion(sesion.id, sesion.pendiente)
+  // HU-7: el único destinatario válido es el correo que el usuario escribió en este mensaje.
+  const correo = correoDelMensaje(texto)
+  if (correo) otorgarPermiso(sesion.id, "correo", correo)
   sesion.pendiente = undefined
 }
 
@@ -62,11 +78,12 @@ function mensajeTope(toolCalls: ToolCallVisible[]): string {
   return `Alcancé el tope de ${config.maxIter} pasos en este turno. Esto es lo que logré:\n${hechos || "- nada todavía"}\n\nFalta completar el resto; pídeme continuar.`
 }
 
-export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapter, raiz: string): Promise<RespuestaTurno> {
+export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapter, raiz: string, remitente?: Remitente): Promise<RespuestaTurno> {
   const ts = new Date().toISOString()
   sesion.historial.push({ rol: "user", texto, ts })
   const toolCalls: ToolCallVisible[] = []
   let reply = ""
+  sesion.ofrecerCorreo = false
 
   if (sesion.tokens >= config.maxTokensSesion) {
     reply = `Esta sesión alcanzó el tope de ${config.maxTokensSesion} tokens. Abre una sesión nueva para continuar.`
@@ -77,7 +94,7 @@ export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapt
       const system: Mensaje = { rol: "system", texto: await systemPrompt(raiz) }
       let terminado = false
       for (let i = 0; i < config.maxIter && !terminado; i++) {
-        const r = await llm.enviar([system, ...sesion.mensajes], definiciones)
+        const r = await llm.enviar([system, ...sesion.mensajes], definicionesPara(remitente))
         sesion.tokens += r.tokens
         sesion.mensajes.push({ rol: "assistant", texto: r.texto, llamadas: r.llamadas })
         if (r.llamadas.length === 0) {
@@ -86,7 +103,7 @@ export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapt
           break
         }
         for (const llamada of r.llamadas) {
-          const { contenido, visible } = await ejecutarLlamada(sesion, llamada, raiz)
+          const { contenido, visible } = await ejecutarLlamada(sesion, llamada, raiz, remitente)
           sesion.mensajes.push({ rol: "tool", id: llamada.id, nombre: llamada.nombre, contenido })
           toolCalls.push(visible)
         }
@@ -99,8 +116,9 @@ export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapt
       reply = `No pude completar la respuesta porque falló la conexión con el modelo (${motivo}). La sesión sigue activa: intenta de nuevo.`
     }
   }
-  revocarConfirmaciones(sesion.id)
+  revocarPermisos(sesion.id)
   const needsConfirmation = Boolean(sesion.pendiente)
+  const pideCorreo = Boolean(remitente && sesion.ofrecerCorreo)
   sesion.historial.push({ rol: "assistant", texto: reply, ts: new Date().toISOString(), toolCalls, needsConfirmation })
-  return { reply, toolCalls, needsConfirmation }
+  return { reply, toolCalls, needsConfirmation, pideCorreo }
 }

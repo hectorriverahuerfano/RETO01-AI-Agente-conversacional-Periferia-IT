@@ -5,9 +5,11 @@ process.env.FECHA_EJECUCION ??= "2026-09-25"
 
 import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
+import ExcelJS from "exceljs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { otorgarConfirmacion } from "./src/domain/confirmaciones.ts"
+import { otorgarConfirmacion, otorgarPermiso } from "./src/domain/confirmaciones.ts"
+import type { Correo, Remitente } from "./src/domain/correo.ts"
 import * as proveedor from "./src/tools/proveedor.ts"
 import { buscarHerramienta } from "./src/tools/registro.ts"
 import * as moduloTools from "./modulo/tools/proveedor.ts"
@@ -82,6 +84,52 @@ async function pruebasDeError(): Promise<void> {
   verificar(confirmado.ok, "envío con confirmación → ENVIO-SIMULADO.md")
   const repetido = parse(await proveedor.simular_envio.execute({ caso: "ec-corp-andina", confirmado: true }, ctx))
   verificar(!repetido.ok, "la confirmación es de un solo uso")
+
+  console.log("\n■ Copia por correo (HU-7) con remitente falso: nunca sale a la red")
+  const enviados: Correo[] = []
+  const falso: Remitente = { async enviar(c) { enviados.push(c); return { id: "falso" } } }
+  const ctxCorreo = { ...ctx, remitente: falso }
+  const sinPermiso = parse(await proveedor.enviar_correo.execute({ caso: "ec-corp-andina", destinatario: "evaluador@empresa.com" }, ctxCorreo))
+  verificar(!sinPermiso.ok && /último mensaje/.test(sinPermiso.error), "destinatario que el usuario no escribió → rechazado")
+  const inyeccion = parse(await proveedor.enviar_correo.execute({ caso: "ec-corp-andina", destinatario: "a@b.com\r\nBcc: x@y.com" }, ctxCorreo))
+  verificar(!inyeccion.ok, "intento de inyectar cabeceras en el destinatario → rechazado")
+  otorgarPermiso("demo", "correo", "evaluador@empresa.com")
+  const noConfigurado = parse(await proveedor.enviar_correo.execute({ caso: "ec-corp-andina", destinatario: "evaluador@empresa.com" }, ctx))
+  verificar(!noConfigurado.ok && /no configurado/.test(noConfigurado.error), "sin Gmail configurado → \"envío por correo no configurado\"")
+  otorgarPermiso("demo", "correo", "evaluador@empresa.com")
+  const enviado = parse(await proveedor.enviar_correo.execute({ caso: "ec-corp-andina", destinatario: "Evaluador@Empresa.com" }, ctxCorreo))
+  const contenido = enviados.flatMap((c) => c.adjuntos.map((a) => a.contenido.toString("latin1"))).join("\n") + (enviados[0]?.texto ?? "")
+  verificar(enviado.ok && enviados.length === 1 && enviados[0]?.para === "evaluador@empresa.com", "con permiso y remitente → 1 correo al destinatario escrito")
+  verificar(!contenido.includes("03100012345") && !contenido.includes("COLOCOBM"), "RN2: adjuntos y cuerpo sin datos bancarios")
+  const reuso = parse(await proveedor.enviar_correo.execute({ caso: "ec-corp-andina", destinatario: "evaluador@empresa.com" }, ctxCorreo))
+  verificar(!reuso.ok && enviados.length === 1, "el permiso de correo es de un solo uso")
+
+  // RN2 verificado leyendo las celdas del xlsx adjunto (no los bytes comprimidos).
+  otorgarConfirmacion("demo", "co-industrias-delta")
+  await proveedor.simular_envio.execute({ caso: "co-industrias-delta", confirmado: true }, ctx)
+  otorgarPermiso("demo", "correo", "evaluador@empresa.com")
+  await proveedor.enviar_correo.execute({ caso: "co-industrias-delta", destinatario: "evaluador@empresa.com" }, ctxCorreo)
+  const xlsx = enviados[1]?.adjuntos.find((a) => a.nombre.endsWith(".xlsx"))
+  const celdas: string[] = []
+  if (xlsx) {
+    const libro = new ExcelJS.Workbook()
+    await libro.xlsx.load(xlsx.contenido as unknown as ArrayBuffer)
+    libro.eachSheet((h) => h.eachRow((fila) => fila.eachCell((c) => celdas.push(String(c.value)))))
+  }
+  verificar(celdas.length > 0 && !celdas.some((c) => /03100012345|COLOCOBM|Bancolombia/.test(c)), "RN2: el xlsx enviado no tiene datos bancarios (leído celda por celda)")
+
+  otorgarPermiso("otra-sesion", "correo", "evaluador@empresa.com")
+  const ajeno = parse(await proveedor.enviar_correo.execute({ caso: "co-industrias-delta", destinatario: "evaluador@empresa.com" }, ctxCorreo))
+  verificar(!ajeno.ok, "un permiso otorgado en otra sesión no sirve")
+  otorgarPermiso("demo", "correo", "evaluador@empresa.com")
+  const sinSimulado = parse(await proveedor.enviar_correo.execute({ caso: "hn-agroexport-sula", destinatario: "evaluador@empresa.com" }, ctxCorreo))
+  verificar(!sinSimulado.ok && /envío simulado/.test(sinSimulado.error), "sin envío simulado previo en la sesión → rechazado")
+  const roto: Remitente = { async enviar() { throw new Error("invalid_grant token=secreto") } }
+  const fallaGmail = parse(await proveedor.enviar_correo.execute({ caso: "co-industrias-delta", destinatario: "evaluador@empresa.com" }, { ...ctx, remitente: roto }))
+  verificar(!fallaGmail.ok && !/secreto|invalid_grant/.test(fallaGmail.error), "error de Gmail → mensaje claro sin detalles internos")
+  otorgarPermiso("demo", "correo", "evaluador@empresa.com")
+  const tope = parse(await proveedor.enviar_correo.execute({ caso: "co-industrias-delta", destinatario: "evaluador@empresa.com" }, ctxCorreo))
+  verificar(!tope.ok && /máximo de 3/.test(tope.error), "4.º envío de la sesión → tope por sesión")
 
   // Plantilla corrupta: se prueba sobre una copia temporal para no tocar fixtures.
   const tmp = await mkdtemp(path.join(os.tmpdir(), "reto01-"))

@@ -12,6 +12,7 @@ import { config } from "./config.ts"
 import { mensajeDeError } from "./domain/resultado.ts"
 import type { LlmAdapter } from "./llm/adapter.ts"
 import { crearAdaptador } from "./llm/index.ts"
+import { remitenteDesdeEntorno } from "./domain/correo.ts"
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const app = new Hono()
@@ -25,6 +26,9 @@ try {
   console.error(`Adaptador LLM no disponible: ${errorLlm}`)
 }
 
+// HU-7: envío real por Gmail solo si GMAIL_ENABLED=true y hay credenciales en el entorno.
+const remitente = config.correoHabilitado ? remitenteDesdeEntorno(config.timeoutMs) : undefined
+
 app.use("*", async (c, next) => {
   await next()
   c.header("X-Content-Type-Options", "nosniff")
@@ -32,7 +36,7 @@ app.use("*", async (c, next) => {
   c.header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'")
 })
 
-app.get("/api/health", (c) => c.json({ ok: true, provider: config.proveedor, model: config.modelo }))
+app.get("/api/health", (c) => c.json({ ok: true, provider: config.proveedor, model: config.modelo, correo: Boolean(remitente) }))
 
 /** Clave de acceso al link: header x-access-key, comparación en tiempo constante, falla cerrado. */
 async function exigirClave(c: Context, next: Next) {
@@ -74,7 +78,7 @@ app.post("/api/chat", async (c) => {
   if (enCurso.has(sessionId)) return c.json({ error: "Ya hay un mensaje en proceso en esta sesión." }, 409)
   enCurso.add(sessionId)
   try {
-    return c.json(await ejecutarTurno(obtenerSesion(sessionId), message, llm, raiz))
+    return c.json(await ejecutarTurno(obtenerSesion(sessionId), message, llm, raiz, remitente))
   } finally {
     enCurso.delete(sessionId)
   }

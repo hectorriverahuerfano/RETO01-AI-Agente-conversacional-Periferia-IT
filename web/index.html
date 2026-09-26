@@ -49,6 +49,15 @@
       </div>
     </div>
 
+    <form id="formCorreo" class="correo" hidden>
+      <label for="correo">¿Quieres recibir el paquete en tu correo?</label>
+      <div class="fila-correo">
+        <input id="correo" type="email" autocomplete="email" required aria-describedby="avisoCorreo" placeholder="nombre@empresa.com">
+        <button type="submit" class="primario">Enviar a mi correo</button>
+      </div>
+      <p id="avisoCorreo" class="sutil">Solo usamos tu correo para este envío; no lo guardamos. El paquete contiene datos ficticios y el formulario va sin datos bancarios.</p>
+    </form>
+
     <form id="formChat" class="entrada">
       <label for="mensaje" class="solo-lector">Mensaje</label>
       <textarea id="mensaje" rows="2" placeholder='Ej.: Procesa el caso "ec-corp-andina"' required></textarea>

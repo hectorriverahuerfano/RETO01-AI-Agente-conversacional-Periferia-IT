@@ -27,7 +27,7 @@ Abre http://localhost:3000 e ingresa tu `ACCESS_KEY`. Con `npm run dev` el servi
 npm run demo          # equivalente: bun run demo.ts
 ```
 
-Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directamente a las herramientas y ejecuta 28 verificaciones: conteos por caso, vigencias, datos bancarios fuera del borrador, errores (caso inexistente, path traversal, plantilla corrupta, envío sin confirmación) y sincronía del módulo. Sale con código distinto de 0 si algo falla. No necesita clave.
+Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directamente a las herramientas y ejecuta 39 verificaciones: conteos por caso, vigencias, datos bancarios fuera del borrador, errores (caso inexistente, path traversal, plantilla corrupta, envío sin confirmación) y sincronía del módulo. Sale con código distinto de 0 si algo falla. No necesita clave.
 
 ## Variables de entorno
 
@@ -43,6 +43,16 @@ Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directa
 | `MAX_TOKENS_SESION` | Tope de tokens por sesión (50000) |
 | `RATE_LIMIT_POR_MIN` | Peticiones por minuto por IP (10) |
 | `LLM_TIMEOUT_MS` | Timeout al proveedor (60000) |
+
+## Copia real por correo (opcional, HU-7)
+
+Extensión fuera del PRD, apagada por defecto. Tras el envío simulado, el chat ofrece enviar el paquete (formulario sin datos bancarios, checklist y soportes) al correo que la persona escriba.
+
+1. En Google Cloud: habilita Gmail API y crea un cliente OAuth tipo **Escritorio**.
+2. Pon `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_FROM` en `.env` y ejecuta `npm run gmail-auth` una vez.
+3. Copia el refresh token impreso en `GMAIL_REFRESH_TOKEN` y activa `GMAIL_ENABLED=true`.
+
+Topes: 3 correos por sesión y 10 por día (`CORREO_MAX_SESION`, `CORREO_MAX_DIA`); lista opcional de dominios (`EMAIL_DOMINIOS_PERMITIDOS`). `/api/health` indica `correo: true` cuando está activo.
 
 ## API
 

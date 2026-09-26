@@ -1,26 +1,45 @@
-// Confirmación humana (RN4 / CA3) controlada fuera del modelo.
-// El servidor otorga una confirmación de un solo uso, atada a sesión y caso, solo cuando el
-// mensaje del usuario inmediatamente posterior a la pregunta es afirmativo.
+// Permisos humanos (RN4 / CA3) controlados fuera del modelo.
+// El servidor otorga permisos de un solo uso, atados a la sesión, que solo nacen del mensaje
+// del usuario inmediatamente posterior a la pregunta y se revocan al terminar ese turno.
+//   - "envio":  clave = caso. Confirmación del envío simulado.
+//   - "correo": clave = email. El destinatario debe estar escrito literalmente por el usuario.
 
-const otorgadas = new Map<string, Set<string>>()
+export type TipoPermiso = "envio" | "correo"
 
-export function otorgarConfirmacion(sessionId: string, caso: string): void {
-  const casos = otorgadas.get(sessionId) ?? new Set<string>()
-  casos.add(caso)
-  otorgadas.set(sessionId, casos)
+const otorgados = new Map<string, Set<string>>()
+const llave = (tipo: TipoPermiso, clave: string) => `${tipo}:${clave.toLowerCase()}`
+
+export function otorgarPermiso(sessionId: string, tipo: TipoPermiso, clave: string): void {
+  const permisos = otorgados.get(sessionId) ?? new Set<string>()
+  permisos.add(llave(tipo, clave))
+  otorgados.set(sessionId, permisos)
 }
 
-/** Consume la confirmación: devuelve true solo una vez. */
-export function consumirConfirmacion(sessionId: string, caso: string): boolean {
-  const casos = otorgadas.get(sessionId)
-  if (!casos?.has(caso)) return false
-  casos.delete(caso)
-  return true
+/** Consume el permiso: devuelve true solo una vez. */
+export function consumirPermiso(sessionId: string, tipo: TipoPermiso, clave: string): boolean {
+  return otorgados.get(sessionId)?.delete(llave(tipo, clave)) ?? false
 }
 
-export function revocarConfirmaciones(sessionId: string): void {
-  otorgadas.delete(sessionId)
+/** Consulta sin consumir. */
+export function tienePermiso(sessionId: string, tipo: TipoPermiso, clave: string): boolean {
+  return otorgados.get(sessionId)?.has(llave(tipo, clave)) ?? false
 }
+
+// Envíos simulados hechos en cada sesión: la copia por correo solo se ofrece a quien confirmó.
+const simulados = new Map<string, Set<string>>()
+export function registrarEnvioSimulado(sessionId: string, caso: string): void {
+  simulados.set(sessionId, (simulados.get(sessionId) ?? new Set<string>()).add(caso))
+}
+export function huboEnvioSimulado(sessionId: string, caso: string): boolean {
+  return simulados.get(sessionId)?.has(caso) ?? false
+}
+
+export function revocarPermisos(sessionId: string): void {
+  otorgados.delete(sessionId)
+}
+
+export const otorgarConfirmacion = (sessionId: string, caso: string) => otorgarPermiso(sessionId, "envio", caso)
+export const consumirConfirmacion = (sessionId: string, caso: string) => consumirPermiso(sessionId, "envio", caso)
 
 const AFIRMATIVO = /^(si|confirmo|confirmado|envia|envialo|enviar|adelante|procede|autorizo|de acuerdo|ok|dale|hazlo)\b/
 const NEGATIVO = /\b(no|todavia no|aun no|cancela|espera|detente)\b/
@@ -34,4 +53,11 @@ export function esConfirmacion(mensaje: string): boolean {
     .replace(/[^a-z ]+/g, " ")
     .trim()
   return AFIRMATIVO.test(texto) && !NEGATIVO.test(texto)
+}
+
+/** Correos escritos por el usuario en su mensaje. Solo se acepta uno por mensaje. */
+export function correoDelMensaje(mensaje: string): string | undefined {
+  const encontrados = mensaje.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? []
+  const unicos = [...new Set(encontrados.map((c) => c.toLowerCase()))]
+  return unicos.length === 1 ? unicos[0] : undefined
 }

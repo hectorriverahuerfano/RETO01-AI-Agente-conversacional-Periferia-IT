@@ -19,6 +19,12 @@ export const config = {
   rateLimitPorMin: entero("RATE_LIMIT_POR_MIN", 10),
   timeoutMs: entero("LLM_TIMEOUT_MS", 60000),
   puerto: entero("PORT", 3000),
+  /** Interruptor del envío real por Gmail (HU-7). Apagado salvo GMAIL_ENABLED=true. */
+  correoHabilitado: process.env.GMAIL_ENABLED === "true",
+  correoMaxDia: entero("CORREO_MAX_DIA", 10),
+  correoMaxSesion: entero("CORREO_MAX_SESION", 3),
+  /** Dominios a los que se permite enviar; vacío = cualquiera. */
+  dominiosPermitidos: (process.env.EMAIL_DOMINIOS_PERMITIDOS ?? "").split(",").map((d) => d.trim().toLowerCase()).filter(Boolean),
 }
 
 /** Fecha contra la que se evalúan vigencias. Fijarla hace el resultado determinista. */

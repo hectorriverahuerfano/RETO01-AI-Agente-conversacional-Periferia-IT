@@ -11,7 +11,8 @@
     "start": "tsx --env-file-if-exists=.env src/server.ts",
     "demo": "tsx demo.ts",
     "typecheck": "tsc --noEmit",
-    "sync-modulo": "tsx scripts/sync-modulo.ts"
+    "sync-modulo": "tsx scripts/sync-modulo.ts",
+    "gmail-auth": "tsx --env-file=.env scripts/gmail-auth.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

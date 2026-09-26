@@ -80,6 +80,18 @@ El área administrativa transcribe a mano, cada mes, entre 8 y 12 formularios de
 | PDF generado con pdf-lib | Rellenar un AcroForm | No hay PDF original del cliente en los fixtures; el PRD acepta un PDF generado. |
 | Similitud por palabras (Jaccard) para etiquetas desconocidas | Embeddings o que el LLM decida el mapeo | Es determinista, explicable y no gasta tokens. El glosario resuelve los sinónimos conocidos. |
 
+## 6.1 Extensión HU-7: copia real del paquete por correo (desviación consciente del PRD)
+
+El PRD excluye la integración real con correo (§3.2) y define "enviar" como escribir `ENVIO-SIMULADO.md`. **Eso no cambió:** "envía" sigue produciendo solo ese archivo (§11). Como extra opcional, Hector pidió que quien pruebe pueda recibir el paquete en su correo.
+
+- **Cuándo:** solo después de un envío simulado confirmado **en la misma sesión**, el chat ofrece un campo "¿Quieres recibir el paquete en tu correo?".
+- **A quién:** únicamente al correo que la persona escribió en su **último mensaje**. El servidor lo extrae del texto y otorga un permiso de un solo uso; el modelo no puede inventar ni redirigir el destinatario, aunque un documento se lo pida.
+- **Qué:** contenido fijo que el modelo no controla: asunto con el cliente, cuerpo con el borrador (sin banco), el formulario **con los datos bancarios ocultos** (RN2), el checklist y los soportes.
+- **Cómo:** Gmail API por `fetch`, sin dependencias nuevas, con OAuth de scope único `gmail.send`. El refresh token se obtiene una vez con `npm run gmail-auth` y solo vive en `.env` y en Render.
+- **Topes:** 3 correos por sesión y 10 por día, reservados antes de enviar para no duplicar. Opcionalmente, una lista de dominios permitidos (`EMAIL_DOMINIOS_PERMITIDOS`). Todo apagado salvo `GMAIL_ENABLED=true`.
+- **Seguridad del MIME:** se rechazan saltos de línea, comas y punto y coma en destinatario y asunto (inyección de cabeceras); nombres de adjuntos saneados.
+- **Riesgo aceptado:** el link es público, así que alguien con la clave de acceso podría usar la cuenta para enviar hasta el tope diario. Mitigado con los topes, la lista de dominios y el interruptor.
+
 ## 7. Supuestos
 
 1. **Fecha de ejecución:** `FECHA_EJECUCION=2026-09-25` fija la evaluación de vigencias. La Cámara de Comercio vence el 2026-09-30; con la fecha real, una defensa posterior bloquearía todos los casos.
@@ -103,6 +115,7 @@ El área administrativa transcribe a mano, cada mes, entre 8 y 12 formularios de
 | HU-3 Portal (P2) | Hecho (valores + diseño) | Navegador asistido (sección 5) |
 | HU-4 Paquete para firma | Hecho | Integración con firma electrónica |
 | HU-5 Errores | Hecho | Alertas de operación |
+| **HU-7 Copia real por correo** (extensión fuera del PRD) | Hecho, apagado por defecto (`GMAIL_ENABLED`) | Cuenta Gmail dedicada; cola persistente de envíos |
 | Bonus `modulo/` | Hecho | Generado desde las mismas fuentes; `demo.ts` verifica que no difieran |
 
 ## 9. Uso de IA
@@ -134,6 +147,27 @@ El área administrativa transcribe a mano, cada mes, entre 8 y 12 formularios de
 - **Bun:** no estaba instalado. Se usó Node + tsx.
 
 Hector revisó, dirigió y validó cada decisión y puede explicar cada línea.
+
+### Ronda 3: extensión HU-7 (copia por correo)
+
+Hector pidió usar todos los agentes. Cada uno participó en el momento en que su rol aportaba más:
+
+| Fase | Agente | Pregunta o tarea | Resultado |
+|---|---|---|---|
+| Diseño | **Simon** | ¿Rompe el PRD? Redacta HU-7 | GO con ajustes: ofrecer el correo solo tras el envío simulado; excluir datos bancarios; interruptor por variable de entorno; publicar la app de Google en producción (el token de "Testing" caduca en 7 días) |
+| Diseño | **Kira** | ¿Dónde vive cada pieza? ¿Cómo generalizar la guarda? | NO-GO con ajustes: nada que no sea herramienta puede exportarse en `proveedor.ts`; generalizar confirmaciones a permisos de un solo uso; inyectar el remitente para que la demo nunca toque la red |
+| Diseño | **Max** | Modelo de amenazas | GO con ajustes: cuenta usada para spam, inyección de destinatario, inyección de cabeceras MIME, fuga del token. Exigió tope diario persistente, lista de dominios y bloquear saltos de línea |
+| Diseño | **Charlotte** | ¿Cómo pedir el correo? | Campo dedicado que envía el correo como mensaje literal; textos de privacidad, éxito y error |
+| Diseño | **Oreo** | Google Cloud y Render | APPROVED_WITH_WARNINGS: cliente OAuth tipo Escritorio; app en producción; escaneo de patrones de secretos antes del push; recomienda una Gmail dedicada |
+| Construcción | **Luna** | Escribir `src/domain/correo.ts` | Cliente Gmail y MIME con defensas contra inyección de cabeceras |
+| Construcción | **Salen** | Escribir `scripts/gmail-auth.ts` | Flujo OAuth local de una vez, con `state` anti-CSRF; no guarda el token en disco |
+| Revisión | **Lucy** | Revisar el código | APROBADO CON CAMBIOS: consumir el permiso justo antes de enviar; exigir envío simulado de la misma sesión; registrar la causa de errores; reservar cupo antes de enviar; volver a mostrar el campo si falla |
+| Revisión | **Coco** | Probar el comportamiento | PASA CON OBSERVACIONES: 33 pruebas propias sin red. Detectó que la verificación de datos bancarios de la demo no probaba nada (buscaba texto en un binario comprimido); se reemplazó por lectura celda por celda y se agregaron 5 casos más |
+
+**Desacuerdos resueltos:**
+- **Lista de dominios** (Max la exigía): quedó configurable. Hector decide si la activa.
+- **Adjuntar el formulario con datos bancarios** (Simon lo prohibía por RN2): se adjunta una copia con esos valores ocultos.
+- **Tope persistente** (Kira y Max): archivo en `out/`, que sobrevive reinicios del proceso pero no un redespliegue en Render; queda declarado.
 
 ## 10. Riesgos de producción y mitigación
 

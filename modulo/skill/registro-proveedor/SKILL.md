@@ -37,6 +37,9 @@ Se llenan solo si la plantilla los pide. Nunca van en el borrador de correo ni s
 ## Acciones externas (RN4)
 Enviar, firmar o cargar a un portal siempre requiere confirmación explícita del usuario en el mensaje inmediatamente anterior. En este sistema "enviar" solo escribe `out/<caso>/ENVIO-SIMULADO.md`.
 
+## Copia por correo (extensión HU-7, fuera del PRD)
+Si está habilitada, después del envío simulado se puede mandar una copia real del paquete al correo que la persona escriba. El formulario de la copia lleva los datos bancarios ocultos. Hay topes por sesión y por día.
+
 ## Portal web
 No se automatiza. Se generan los valores en `valores-portal.md`. Las credenciales las ingresa una persona, y el clic en "Enviar" del portal también es humano.
 
