@@ -147,3 +147,122 @@ Hector revisó, dirigió y validó cada decisión y puede explicar cada línea.
 | Disco efímero de Render: `out/` y las sesiones se pierden al reiniciar | Aceptable en el reto; en producción, almacenamiento de objetos y sesiones en Redis |
 | Plan gratuito de Render: el servicio se duerme | Un workflow de GitHub Actions (`.github/workflows/keepalive.yml`) consulta `/api/health` cada 5 min; en producción, plan pago |
 | Portales con CAPTCHA o MFA | Operación asistida por un humano (sección 5) |
+
+---
+
+## Anexo A. Bitácora del trabajo con los subagentes
+
+### A.1 Cómo se trabajó
+
+Los 9 agentes (`.claude/agents/`) venían de otro proyecto con stack PHP/Laravel. Antes de usarlos se limpiaron las referencias a ese proyecto y a cada uno se le indicó aplicar su disciplina al stack TypeScript del reto.
+
+**Los agentes no conversaron directamente entre sí.** Claude Code actuó como orquestador: le hizo a cada agente las mismas preguntas en paralelo, consolidó las respuestas, detectó los desacuerdos y llevó a Hector las decisiones que solo él podía tomar.
+
+| Fase | Qué se hizo | Resultado |
+|---|---|---|
+| 1. Descubrimiento | Los 9 agentes leyeron el PRD y los fixtures en modo solo lectura | Preguntas para Hector, riesgos y aporte a la hoja de ruta |
+| 2. Decisiones | Hector respondió las preguntas consolidadas | Plan final v2 |
+| 3. Validación | Los 9 agentes revisaron el plan final | 8 × "GO con ajustes" + 1 × "APPROVED_WITH_WARNINGS"; 11 ajustes (A1–A11) |
+| 4. Consulta puntual | Simon evaluó un requerimiento nuevo de Hector (selección de modelo) | Se descartó por contradecir el PRD |
+| 5. Construcción | Claude Code escribió el código aplicando los ajustes | 28 verificaciones de `demo.ts` en verde y link desplegado |
+
+### A.2 Ronda 1: las preguntas que se le hicieron a cada agente
+
+Cada agente respondió estas cuatro preguntas, enfocadas en su especialidad:
+
+1. **¿Qué entendiste?** Desde su especialidad.
+2. **¿Qué necesitas de Hector?** Decisiones o insumos que solo él puede dar.
+3. **¿Cuál es tu aporte a la hoja de ruta?** Pasos concretos con minutos, dentro de un total de 2 horas.
+4. **¿Qué riesgos o trampas ves** en el PRD o en los fixtures?
+
+Además, a cada uno se le pidió revisar un foco concreto:
+
+| Agente | Foco pedido |
+|---|---|
+| Simon (PO) | Alcance, prioridad P0/P1/P2, criterios de aceptación, supuestos para `SOLUCION.md` |
+| Kira (Arquitectura) | Runtime, framework HTTP, librerías xlsx/pdf, adaptador LLM, ciclo con tope, confirmación, `modulo/` sin copias |
+| Charlotte (Diseño) | UI mínima del chat, tarjetas de tool calls, estado de confirmación, accesibilidad, framework más barato en tiempo |
+| Luna (Desarrollo) | Orden de implementación, lógica de mapeo, vencimientos, log; qué hay instalado en la máquina; trampas por caso |
+| Salen (Full stack) | Reparto del trabajo en paralelo, API, un solo comando de arranque, bonus |
+| Lucy (Code review) | Checklist derivado del PRD y momentos de revisión |
+| Coco (QA) | Resultado esperado por caso, pruebas de errores, determinismo, E2E |
+| Max (Seguridad) | Clave del modelo, path traversal, inyección de prompt, datos bancarios, topes, confirmación en código |
+| Oreo (Producción) | Plataforma de despliegue, variables de entorno, health check, checklist de entrega |
+
+### A.3 Lo que respondió cada agente en la ronda 1
+
+| Agente | Lo que le preguntó a Hector | Hallazgos principales |
+|---|---|---|
+| **Simon** | Proveedor y clave del LLM; dónde desplegar; fecha de referencia de vigencias; ¿bonus sí o no?; ¿PDF sí o no? | Los 4 casos cubren variantes a propósito (limpio, faltantes, vencido, portal). Inconsistencias del PRD: la "rúbrica de la sección 10" no existe; CA4 y RN5 piden logs distintos; "confianza < 0.8" no está definida. Riesgo CA2: `generar_formulario` recibe el mapeo desde el modelo. |
+| **Kira** | Proveedor y modelo; plataforma; bonus; fecha de ejecución; ¿link público o con clave?; apellido para el zip | La nota depende de las herramientas, no del modelo. El mapeo que envía el modelo debe recalcularse. La confirmación debe exigirla el servidor. `armar_paquete` depende de que exista el formulario. |
+| **Charlotte** | Nivel de pulido, idioma, streaming, colores, botones de ejemplo por caso | HTML plano servido por el backend. Tarjetas `<details>`. Bloque ámbar de confirmación con botones que envían texto explícito. Enmascarar datos bancarios. Estados "vencido" visibles con texto, no solo color. |
+| **Luna** | Instalar Bun o usar Node; clave LLM; cuenta de despliegue; librerías | Bun **no** estaba instalado (sí Node 24, npm, git). Conteos por caso. La Cámara de Comercio exige "no mayor a 30 días". No hay fixtures de plantilla corrupta ni de caso inexistente: hay que simularlos. |
+| **Salen** | Clave LLM; plataforma con cuenta activa; confirmar Bun; repo o zip; apellido | Vercel serverless no sirve (se pierden sesiones y `out/`). Confirmación con un flag `pendingConfirmation` en el servidor. Reparto en dos frentes paralelos. |
+| **Lucy** | ¿Commits por hito?; nivel de revisión dado el tiempo; fecha de ejecución | Checklist de contrato (sin `any`, `.describe()`, `{ok,data}`, nombres `proveedor_<export>`). Olvidos probables: log doble y `modulo/` sin copias. |
+| **Coco** | ¿Solo `demo.ts` con asserts o también tests?; fecha de vigencias; ¿el caso portal puede quedar listo para firma? | Tabla de conteos esperados: 17/0/0, 13/1/1, 9/1/1, 8/0/1. La Cámara vence el 30-sep: con la fecha real el caso limpio pasa a "no listo". El xlsx incluye fechas internas: comparar celdas, no bytes. |
+| **Max** | ¿Proteger el link con clave?; ¿dónde va la API key en el despliegue?; topes | No hay inyección de prompt explícita en los fixtures, pero `pa-logistica-istmo` trae una URL externa y habla de credenciales: el agente no debe navegar ni pedirlas. En EC, HN y PA el identificador apunta al NIT colombiano. |
+| **Oreo** | Cuenta de Render y GitHub; forma de entrega; clave cargada por Hector en el panel | Veredicto provisional BLOCKED hasta tener insumos. No había `bun`, `gh` ni `docker`. Render con Node nativo, deploy temprano de "hola mundo". El plan gratuito se duerme: hay que despertarlo antes de la defensa. |
+
+### A.4 Preguntas consolidadas a Hector y sus respuestas
+
+| # | Pregunta | Respuesta de Hector |
+|---|---|---|
+| 1 | Proveedor LLM y clave | Claude (Anthropic) en el link; Ollama local (`qwen2.5-coder:7b`) para pruebas |
+| 2 | Plataforma de despliegue | Render gratuito + GitHub; ping periódico para que no se duerma |
+| 3 | Runtime | Node + tsx (Bun no instalado) |
+| 4 | Fecha de referencia | `FECHA_EJECUCION=2026-09-25` |
+| 5 | Proteger el link | Sí, con clave de acceso documentada en el README |
+| 6 | Alcance | PDF sí; bonus `modulo/` si queda tiempo |
+| 7 | Entrega | Repo `RETO01-AI-Agente-conversacional-Periferia-IT` con commits a nombre de Hector Rivera |
+| 8 | Agentes y skills | Incluirlos en el repo (`.claude/`) junto con `hojaruta.md` |
+| 9 | Selección de modelo por el usuario | Descartada tras la consulta a Simon (A.7): se cumple el PRD al pie de la letra |
+
+### A.5 Ronda 2: validación del plan final
+
+A cada agente se le preguntó: **"¿Das GO, GO con ajustes o NO-GO al plan final? ¿Qué ajustes son obligatorios?"**
+
+| Agente | Veredicto | Ajustes obligatorios que pidió |
+|---|---|---|
+| Simon | GO con ajustes | Definir el caso de confianza < 0.8; verificar que HU-5 continúe tras una plantilla corrupta; lista de supuestos; medir tokens para el costo por caso |
+| Kira | GO con ajustes | Formato interno único de mensajes; un solo registro de herramientas (`z.toJSONSchema`); adelantar el contrato del adaptador al minuto 10–20 para probar pronto el 7B; confirmación con texto exacto |
+| Charlotte | GO con ajustes | Pantalla de clave de acceso (password, sessionStorage, nunca en la URL); banner `role="alert"`; estados de error de red, 429 y timeout con reintento; prueba con teclado y a 360 px |
+| Luna | GO con ajustes | PDF plano "etiqueta: valor"; filtro de caracteres WinAnsi antes de `drawText`; normalizar también las claves del glosario (tienen tildes); ESM con versiones fijadas |
+| Salen | GO con ajustes | Contrato de API fijo antes del minuto 55; front sobre un mock mientras tanto; `tsx` aceptable en producción si va en `dependencies` |
+| Lucy | GO con ajustes | Contratos exactos del PRD (§6.2, §6.4); respuesta al llegar al tope de iteraciones; excluir los archivos de secretos del zip |
+| Coco | GO con ajustes | `demo.ts` sin red ni modelo; assert de "envío sin confirmar" tras implementar la confirmación; con el 7B, validar archivos en `out/` y no texto |
+| Max | GO con ajustes | Confirmación de un solo uso atada al caso; sin symlinks; `out/` no servido; clave en header con comparación en tiempo constante y falla cerrado; secretos en `.gitignore` antes del primer `git add`; token nunca en la URL del remote |
+| Oreo | APPROVED_WITH_WARNINGS | Escuchar en `0.0.0.0:$PORT`; `NODE_VERSION`; `package-lock.json` commiteado; `tsx` en `dependencies`; adelantar la revisión de entrega al minuto 100 |
+
+### A.6 Desacuerdos entre agentes y cómo se resolvieron
+
+| Tema | Posiciones | Decisión y motivo |
+|---|---|---|
+| Cómo se confirma el envío | Max y Kira: solo botón o texto exacto. Charlotte: botones que envían texto explícito. PRD §11: escribir "envía" debe funcionar | Lista cerrada de frases afirmativas, sin negaciones, válida solo en el mensaje siguiente y de un solo uso. Cumple §11 sin interpretar lenguaje libre. |
+| Runtime | Kira: Bun + Hono. Oreo y Luna: Node + tsx porque Bun no estaba instalado | Node + tsx, código compatible con Bun. |
+| Librería PDF | Luna (ronda 1): pdfkit. Kira: pdf-lib | pdf-lib, con el filtro WinAnsi que pidió Luna en la ronda 2. |
+| Nombres de la API | Salen: `mensaje`, `respuesta`, `pendingConfirmation`. Lucy: los del PRD | Los del PRD: `message`, `reply`, `needsConfirmation`. |
+| Prioridad del bonus | Simon: no, salvo que sobren 10 min. Kira: al final, generado por script | Se hizo al final, generado desde las fuentes y verificado por `demo.ts`. |
+| Mantener el servicio despierto | Oreo: despertarlo a mano o pagar Starter. Plan inicial: UptimeRobot | La API de UptimeRobot rechazó el plan gratuito; se usó un workflow de GitHub Actions cada 5 min. |
+
+### A.7 Consulta a Simon: ¿el usuario elige el modelo y pone su clave?
+
+**Pregunta de Hector:** que el usuario seleccione el modelo en la app y proporcione sus credenciales, con Claude por defecto.
+
+**Preguntas que se le hicieron a Simon:** ¿contradice el PRD? ¿Qué requerimiento cumple la intención sin violarlo? ¿Qué proveedores listar? Redacta la HU-6. ¿Qué debe confirmar Hector?
+
+**Respuesta de Simon:**
+- **Choque con el PRD:** §0 y §8 dicen que la clave "nunca aparece en el front". Hay además un riesgo de SSRF si Ollama acepta una URL desde el front, y unos 20 minutos que no estaban en el cronograma.
+- **Propuesta:** Claude por defecto con la clave del servidor; selector de una lista fija; clave propia opcional, solo en memoria de la sesión; declarar la desviación en este documento.
+- **Preguntas a Hector:** ¿la clave propia es obligatoria? ¿Aceptas prioridad P2? ¿Tienes clave de OpenAI? ¿Ollama solo en local?
+
+**Decisión de Hector:** descartar el requerimiento y cumplir el PRD al pie de la letra. La clave vive solo en el backend y el proveedor se elige por variable de entorno.
+
+### A.8 Lo que confirmó la construcción
+
+| Hallazgo previsto por los agentes | Qué pasó al construir |
+|---|---|
+| Kira y Coco: el 7B puede fallar al llamar herramientas | qwen2.5-coder:7b llamó 1 de 4 herramientas e inventó el resto. Con Claude Sonnet 5 el flujo fue correcto. Evidencia de que CA2 debe garantizarse en el diseño. |
+| Coco: conteos esperados por caso | `demo.ts` los reprodujo exactos a la primera: 17/0/0, 13/1/1, 9/1/1, 8/0/1. |
+| Luna: plantilla corrupta y caso inexistente sin fixture | Se simularon en una copia temporal de los fixtures, sin modificar los originales. |
+| Max: secretos en la carpeta del proyecto | `.gitignore` verificado con `git check-ignore` antes del primer commit; escaneo de secretos antes del push. Además se sacó del repo el documento del reto porque contenía un correo personal. |
+| Oreo: Render en Node, no serverless | Servicio creado por API con runtime Node; deploy en menos de 1 minuto. Un servicio creado antes desde el panel se autodetectó como Go y falló. |
