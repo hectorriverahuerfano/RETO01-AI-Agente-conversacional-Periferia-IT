@@ -48,7 +48,7 @@ Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directa
 
 Extensión fuera del PRD, apagada por defecto. Tras el envío simulado, el chat ofrece enviar el paquete (formulario sin datos bancarios, checklist y soportes) al correo que la persona escriba.
 
-1. En Google Cloud: habilita Gmail API y crea un cliente OAuth tipo **Escritorio**.
+1. En Google Cloud: habilita Gmail API y crea un cliente OAuth tipo **App de escritorio** (usa `http://localhost` sin registrar URIs).
 2. Pon `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_FROM` en `.env` y ejecuta `npm run gmail-auth` una vez.
 3. Copia el refresh token impreso en `GMAIL_REFRESH_TOKEN` y activa `GMAIL_ENABLED=true`.
 

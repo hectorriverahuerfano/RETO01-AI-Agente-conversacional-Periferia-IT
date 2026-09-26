@@ -4,9 +4,10 @@ import { spawn } from "node:child_process"
 import { randomBytes } from "node:crypto"
 import { createServer, type ServerResponse } from "node:http"
 
-const HOST = "127.0.0.1"
+const HOST = "localhost"
 const PUERTO = 53682
-const REDIRECT_URI = `http://${HOST}:${PUERTO}/callback`
+// Cliente tipo Escritorio: Google acepta http://localhost con cualquier puerto, sin ruta.
+const REDIRECT_URI = `http://${HOST}:${PUERTO}`
 const SCOPE = "https://www.googleapis.com/auth/gmail.send"
 const TIMEOUT_MS = 5 * 60 * 1000
 
@@ -89,7 +90,7 @@ function terminar(codigo: number): void {
 
 const servidor = createServer((req, res) => {
   const url = new URL(req.url ?? "/", REDIRECT_URI)
-  if (url.pathname !== "/callback") {
+  if (url.pathname !== "/") {
     responder(res, 404, "Ruta no encontrada.")
     return
   }
