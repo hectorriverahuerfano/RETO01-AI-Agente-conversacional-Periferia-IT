@@ -73,6 +73,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .fila-correo { display: flex; gap: 8px; flex-wrap: wrap; }
 .fila-correo input { flex: 1; min-width: 200px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; background: var(--fondo); }
 
+.legal { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+.legal h1 { font-size: 1.5rem; line-height: 1.25; }
+.legal h2 { font-size: 1.1rem; margin-top: 28px; }
+.legal a, .enlaces-legales a { color: var(--acento); }
+.enlaces-legales { font-size: .85em; color: var(--sutil); margin: 0; }
+
 .entrada { display: flex; gap: 8px; padding: 12px 16px 16px; }
 .entrada textarea { flex: 1; resize: vertical; min-height: 44px; padding: 10px; border: 1px solid var(--borde); border-radius: 10px; background: var(--superficie); }
 @media (max-width: 480px) {
