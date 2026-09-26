@@ -1,7 +1,6 @@
 // Front de chat sin framework: historial, tool calls visibles y confirmación resaltada.
 
 const CASOS = ["co-industrias-delta", "ec-corp-andina", "hn-agroexport-sula", "pa-logistica-istmo"]
-const CLAVE_ALMACEN = "reto01-clave"
 const $ = (id) => document.getElementById(id)
 
 let sesionId = nuevaSesionId()
@@ -9,13 +8,6 @@ let ocupado = false
 
 function nuevaSesionId() {
   return "s-" + crypto.randomUUID().replace(/-/g, "").slice(0, 24)
-}
-
-function leerClave() {
-  try { return sessionStorage.getItem(CLAVE_ALMACEN) || "" } catch { return "" }
-}
-function guardarClave(valor) {
-  try { valor ? sessionStorage.setItem(CLAVE_ALMACEN, valor) : sessionStorage.removeItem(CLAVE_ALMACEN) } catch { /* sin almacenamiento */ }
 }
 
 // --- Markdown mínimo y seguro (escapa primero, luego da formato) ---
@@ -118,11 +110,11 @@ async function enviar(texto, mostrar = true) {
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-access-key": leerClave() },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId: sesionId, message: texto }),
     })
     const datos = await r.json().catch(() => ({}))
-    if (r.status === 401) { pensando.remove(); mostrarAcceso("La clave de acceso ya no es válida."); return }
+    if (r.status === 401) { pensando.remove(); mostrarAcceso(SESION_EXPIRADA); return }
     if (r.status === 429) return error("Demasiadas peticiones. Espera un minuto.", texto)
     if (!r.ok) return error(datos.error || `Error ${r.status}.`, texto)
     mensaje("agente", datos.reply, datos.toolCalls || [], datos.needsConfirmation)
@@ -133,20 +125,34 @@ async function enviar(texto, mostrar = true) {
   } finally {
     pensando.remove()
     setOcupado(false)
-    ;($("formCorreo").hidden ? $("mensaje") : $("correo")).focus()
+    // Si la sesión expiró, el foco ya está en la clave: no se lo quitamos.
+    if (!$("app").hidden) ($("formCorreo").hidden ? $("mensaje") : $("correo")).focus()
   }
 }
 
-async function validarClave(clave) {
-  const r = await fetch(`/api/sessions/${sesionId}`, { headers: { "x-access-key": clave } })
-  return r.status !== 401 && r.status !== 503
+// La sesión vive en una cookie HttpOnly: este JS nunca ve la clave guardada ni el token.
+const SESION_EXPIRADA = "Tu sesión expiró. Ingresa la clave para continuar."
+
+async function haySesion() {
+  try {
+    const r = await fetch("/api/sesion")
+    if (!r.ok) return false
+    const datos = await r.json()
+    return datos.autenticado === true
+  } catch { return false }
+}
+
+function errorAcceso(motivo = "", invalido = false) {
+  $("errorAcceso").hidden = !motivo
+  $("errorAcceso").textContent = motivo
+  if (invalido) $("clave").setAttribute("aria-invalid", "true")
+  else $("clave").removeAttribute("aria-invalid")
 }
 
 function mostrarAcceso(motivo = "") {
   $("app").hidden = true
   $("acceso").hidden = false
-  $("errorAcceso").hidden = !motivo
-  $("errorAcceso").textContent = motivo
+  errorAcceso(motivo)
   $("clave").value = ""
   $("clave").focus()
 }
@@ -160,9 +166,35 @@ function mostrarApp() {
 // --- Eventos ---
 $("formAcceso").addEventListener("submit", async (e) => {
   e.preventDefault()
+  const form = $("formAcceso")
+  if (form.getAttribute("aria-busy") === "true") return
+  const boton = form.querySelector('button[type="submit"]')
+  const textoBoton = boton.textContent
   const clave = $("clave").value.trim()
-  if (await validarClave(clave)) { guardarClave(clave); mostrarApp() }
-  else mostrarAcceso("Clave incorrecta.")
+  form.setAttribute("aria-busy", "true")
+  boton.disabled = true
+  boton.textContent = "Verificando…"
+  let motivo = ""
+  try {
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clave }),
+    })
+    if (r.ok) { $("clave").value = ""; errorAcceso(); mostrarApp(); return }
+    motivo = r.status === 401 ? "Clave incorrecta. Revísala e inténtalo de nuevo."
+      : r.status === 429 ? "Demasiados intentos. Espera 1 minuto y vuelve a intentarlo."
+      : `Error ${r.status}. Inténtalo de nuevo.`
+  } catch {
+    motivo = "No hay conexión con el servidor."
+  } finally {
+    form.removeAttribute("aria-busy")
+    boton.disabled = false
+    boton.textContent = textoBoton
+  }
+  errorAcceso(motivo, true)
+  $("clave").focus()
+  $("clave").select()
 })
 $("formChat").addEventListener("submit", (e) => {
   e.preventDefault()
@@ -185,7 +217,12 @@ $("formCorreo").addEventListener("submit", (e) => {
   // El correo va literal en el mensaje: el servidor solo acepta el destinatario que escribió el usuario.
   enviar(`Envíame el paquete a ${correo}`)
 })
-$("cambiarClave").addEventListener("click", () => { guardarClave(""); mostrarAcceso() })
+$("cerrarSesion").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" }).catch(() => null)
+  // El historial local (ids y títulos) se conserva; solo se limpia la pantalla.
+  nuevaConversacion()
+  mostrarAcceso("Sesión cerrada.")
+})
 $("nuevaSesion").addEventListener("click", nuevaConversacion)
 
 // --- Historial de conversaciones (HU-8) ---
@@ -263,7 +300,7 @@ function cerrarPanel() {
 }
 
 async function abrirConversacion(id) {
-  const r = await fetch(`/api/sessions/${id}`, { headers: { "x-access-key": leerClave() } }).catch(() => null)
+  const r = await fetch(`/api/sessions/${id}`).catch(() => null)
   if (!r || r.status === 404) {
     guardarConversaciones(leerConversaciones().filter((c) => c.id !== id))
     pintarConversaciones()
@@ -271,7 +308,7 @@ async function abrirConversacion(id) {
     $("avisoConversacion").hidden = false
     return
   }
-  if (r.status === 401) { cerrarPanel(); mostrarAcceso("La clave de acceso ya no es válida."); return }
+  if (r.status === 401) { cerrarPanel(); mostrarAcceso(SESION_EXPIRADA); return }
   const datos = await r.json()
   cerrarPanel()
   limpiarChat()
@@ -288,8 +325,10 @@ async function borrarHistorial() {
   if (!confirm("¿Borrar todo el historial? No se puede deshacer.")) return
   const lista = leerConversaciones()
   // También se borran del servidor: pueden contener el correo que escribió la persona.
-  await Promise.all(lista.map((c) =>
-    fetch(`/api/sessions/${c.id}`, { method: "DELETE", headers: { "x-access-key": leerClave() } }).catch(() => null)))
+  const respuestas = await Promise.all(lista.map((c) =>
+    fetch(`/api/sessions/${c.id}`, { method: "DELETE" }).catch(() => null)))
+  // Sin sesión no se borró nada en el servidor: se conserva la lista local para reintentar.
+  if (respuestas.some((r) => r?.status === 401)) { cerrarPanel(); mostrarAcceso(SESION_EXPIRADA); return }
   guardarConversaciones([])
   pintarConversaciones()
   nuevaConversacion()
@@ -317,7 +356,6 @@ for (const caso of CASOS) {
 fetch("/api/health").then((r) => r.json()).then((h) => { $("modelo").textContent = `· ${h.provider} / ${h.model}` }).catch(() => {})
 
 ;(async () => {
-  const clave = leerClave()
-  if (clave && (await validarClave(clave))) mostrarApp()
+  if (await haySesion()) mostrarApp()
   else mostrarAcceso()
 })()

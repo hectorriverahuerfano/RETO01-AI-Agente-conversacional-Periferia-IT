@@ -14,6 +14,7 @@ import * as proveedor from "./src/tools/proveedor.ts"
 import { buscarHerramienta } from "./src/tools/registro.ts"
 import * as moduloTools from "./modulo/tools/proveedor.ts"
 import { contenidoModulo } from "./scripts/sync-modulo.ts"
+import { claveCorrecta, crearToken, verificarToken } from "./src/domain/sesion-web.ts"
 
 const raiz = path.dirname(fileURLToPath(import.meta.url))
 const ctx = { directory: raiz, sessionId: "demo" }
@@ -154,6 +155,17 @@ async function main(): Promise<void> {
   const casos = (await readdir(path.join(raiz, "fixtures", "reto-01", "casos"))).sort()
   for (const caso of casos) await procesarCaso(caso)
   await pruebasDeError()
+  console.log("\n■ Inicio de sesión (HU-9): token firmado sin base de datos")
+  const secreto = "s".repeat(32)
+  const ahora = Date.parse("2026-09-25T12:00:00Z")
+  const token = crearToken(secreto, "clave-demo", ahora)
+  verificar(verificarToken(token, secreto, "clave-demo", ahora + 1000), "token recién emitido → válido")
+  verificar(!verificarToken(token, secreto, "clave-demo", ahora + 9 * 3600_000), "token de más de 8 horas → vencido")
+  verificar(!verificarToken(token, secreto, "otra-clave", ahora), "cambiar la clave de acceso invalida las sesiones")
+  verificar(!verificarToken(token.slice(0, -2) + "AA", secreto, "clave-demo", ahora), "firma alterada → rechazado")
+  verificar(!token.includes("clave-demo") && !/"k"/.test(Buffer.from(token.split(".")[1] ?? "", "base64url").toString()), "la cookie no lleva la clave ni un hash de ella")
+  verificar(claveCorrecta("clave-demo", "clave-demo") && !claveCorrecta("clave-dem", "clave-demo"), "comparación de clave en tiempo constante")
+
   console.log("\n■ Módulo reutilizable (bonus)")
   for (const [relativa, esperadoTxt] of Object.entries(await contenidoModulo())) {
     const actual = await readFile(path.join(raiz, relativa), "utf8").catch(() => "")

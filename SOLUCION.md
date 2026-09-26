@@ -101,6 +101,16 @@ Cada ingreso abre una conversación nueva. Las anteriores aparecen en el botón 
 - **Borrar historial:** borra la lista local y las conversaciones del servidor (`DELETE /api/sessions/:id`, con clave de acceso, límite de peticiones y validación del id). Responde 204 exista o no la sesión, para no revelar qué ids existen, y 409 si hay un mensaje en curso.
 - **Si el servidor se reinició:** la conversación aparece como "ya no disponible" y se quita de la lista.
 
+## 6.3 Extensión HU-9: inicio de sesión con la clave de acceso, sin base de datos
+
+Antes, la clave de acceso se guardaba en `sessionStorage` y viajaba en cada petición. Además, un error de CSS dejaba el formulario de la clave visible debajo del chat (`display` anulaba el atributo `hidden`).
+
+- **Cómo funciona:** la persona escribe la clave una vez (`POST /api/login`) y el servidor responde con una cookie `HttpOnly`, `SameSite=Strict`, `Secure` y con prefijo `__Host-` en producción, que vence en 8 horas. El JavaScript nunca ve la clave ni el token. "Cerrar sesión" borra la cookie.
+- **Sin base de datos:** el token es `v1.<payload>.<firma>`. El payload solo lleva la fecha de vencimiento. La firma es un HMAC con una llave derivada de `SESSION_SECRET` y de la clave de acceso, así que cambiar la clave invalida todas las sesiones.
+- **Compatibilidad:** el header `x-access-key` sigue funcionando para `curl` y scripts, y la clave sigue documentada en el README como pide el PRD.
+- **Protecciones:** 5 intentos fallidos por minuto por IP, compartidos entre login y header, más un tope global de 30 por si alguien falsifica la IP. Quien ya tiene sesión no se ve afectado por esos bloqueos. Hay control de `Origin` (CSRF) en todas las peticiones con cookie que cambian algo. En producción el servidor no arranca sin `SESSION_SECRET` de 32+ bytes ni sin origen público.
+- **Trade-off:** como el token no tiene estado, cerrar sesión no revoca una cookie robada antes de que venza (8 horas). Se acepta para la demo; revocar exige guardar estado.
+
 ## 7. Supuestos
 
 1. **Fecha de ejecución:** `FECHA_EJECUCION=2026-09-25` fija la evaluación de vigencias. La Cámara de Comercio vence el 2026-09-30; con la fecha real, una defensa posterior bloquearía todos los casos.
@@ -126,6 +136,7 @@ Cada ingreso abre una conversación nueva. Las anteriores aparecen en el botón 
 | HU-5 Errores | Hecho | Alertas de operación |
 | **HU-7 Copia real por correo** (extensión fuera del PRD) | Hecho, apagado por defecto (`GMAIL_ENABLED`) | Cuenta Gmail dedicada; cola persistente de envíos |
 | **HU-8 Historial de conversaciones** (extensión) | Hecho | Persistencia real con identidad de usuario |
+| **HU-9 Inicio de sesión con la clave** (extensión) | Hecho | Usuarios individuales y revocación de sesiones |
 | Bonus `modulo/` | Hecho | Generado desde las mismas fuentes; `demo.ts` verifica que no difieran |
 
 ## 9. Uso de IA
@@ -191,6 +202,24 @@ Pregunta a los agentes: ¿cada ingreso debe borrar la conversación anterior, mo
 | **Max** | C con condiciones | Límite de peticiones también en `/api/sessions`; no guardar contenido ni correos en el navegador; título sin correos; actualizar la Política de Privacidad |
 
 **Desacuerdo resuelto:** Simon y Charlotte preferían borrar solo la lista local; Kira y Max, borrar también en el servidor. Se eligió borrar en el servidor, porque las conversaciones pueden contener correos, con las protecciones de Kira y Max. El historial tiene su propio contador de peticiones, para que abrir varias conversaciones no bloquee el chat.
+
+### Ronda 5: inicio de sesión con la clave (HU-9)
+
+Hector pidió un inicio de sesión sin base de datos y participaron los 9 agentes.
+
+| Fase | Agente | Aporte |
+|---|---|---|
+| Diseño | **Simon** | GO con ajustes: no afecta el PRD si se mantiene `x-access-key` y se documentan las rutas nuevas; redactó HU-9 |
+| Diseño | **Kira** | Detectó que guardar en la cookie un hash de la clave permite adivinarla offline: se firma con una llave derivada y el token lleva versión `v1`. Cookie con prefijo `__Host-` y `Secure` según configuración |
+| Diseño | **Max** | Encontró un problema que ya existía: la validación del header corría antes del limitador y **se podían probar claves sin límite**. Pidió contar fallos compartidos, control de `Origin`, `__Host-` y fallar al arrancar sin secreto |
+| Diseño | **Charlotte** | Confirmó la causa del formulario visible (`display` anulaba `hidden`) y definió los textos: clave incorrecta, demasiados intentos, sesión vencida, "Verificando…", cerrar sesión |
+| Diseño | **Oreo** | Variables `SESSION_SECRET` y producción en Render; cómo verificar los atributos de la cookie; `/api/health` sigue público para el keepalive |
+| Construcción | **Luna** | `src/domain/sesion-web.ts`: token firmado, comparación en tiempo constante, nunca lanza |
+| Construcción | **Salen** | Front: login con cookie, sin guardar la clave, "Cerrar sesión", manejo de 401/429 |
+| Revisión | **Lucy** | APROBADO CON OBSERVACIONES: el bloqueo no debe afectar a sesiones válidas; fallar sin origen público en producción; `ok:false` en todos los errores; IP falsificable |
+| Revisión | **Coco** | PASA CON OBSERVACIONES: más de 25 pruebas con curl. Demostró que falsificar `X-Forwarded-For` saltaba el bloqueo; se agregó el tope global y en local ya no se confía en esas cabeceras |
+
+**Desacuerdo resuelto:** la propuesta inicial guardaba en la cookie un identificador de la clave para invalidar sesiones al cambiarla; Kira y Max lo rechazaron por el riesgo de fuerza bruta offline. Se reemplazó por una llave de firma derivada de la clave, que logra lo mismo sin exponer nada.
 
 ## 10. Riesgos de producción y mitigación
 

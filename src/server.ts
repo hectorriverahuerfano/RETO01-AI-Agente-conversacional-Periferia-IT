@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { serve } from "@hono/node-server"
@@ -14,6 +13,7 @@ import { mensajeDeError } from "./domain/resultado.ts"
 import type { LlmAdapter } from "./llm/adapter.ts"
 import { crearAdaptador } from "./llm/index.ts"
 import { remitenteDesdeEntorno } from "./domain/correo.ts"
+import { exigirSesion, ipCliente, rutasSesion } from "./http/auth.ts"
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const app = new Hono()
@@ -39,33 +39,26 @@ app.use("*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ ok: true, provider: config.proveedor, model: config.modelo, correo: Boolean(remitente) }))
 
-/** Clave de acceso al link: header x-access-key, comparación en tiempo constante, falla cerrado. */
-async function exigirClave(c: Context, next: Next) {
-  if (!config.accessKey) return c.json({ error: "El servidor no tiene ACCESS_KEY configurada." }, 503)
-  const recibida = Buffer.from(c.req.header("x-access-key") ?? "")
-  const esperada = Buffer.from(config.accessKey)
-  if (recibida.length !== esperada.length || !timingSafeEqual(recibida, esperada)) {
-    return c.json({ error: "Clave de acceso inválida." }, 401)
-  }
-  await next()
-}
+// Inicio de sesión (HU-9): /api/sesion, /api/login y /api/logout.
+app.use("/api/login", bodyLimit({ maxSize: 2 * 1024, onError: (c) => c.json({ ok: false, error: "Petición demasiado grande." }, 413) }))
+app.route("/", rutasSesion)
 
 /** Límite de peticiones por IP y minuto; cada ruta lleva su propio contador. */
 function limitador(maxPorMin: number) {
   const ventanas = new Map<string, { inicio: number; cuenta: number }>()
   return async (c: Context, next: Next) => {
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local"
+    const ip = ipCliente(c)
     const ahora = Date.now()
     const v = ventanas.get(ip)
     if (!v || ahora - v.inicio > 60_000) ventanas.set(ip, { inicio: ahora, cuenta: 1 })
-    else if (++v.cuenta > maxPorMin) return c.json({ error: "Demasiadas peticiones. Espera un minuto." }, 429)
+    else if (++v.cuenta > maxPorMin) return c.json({ ok: false, error: "Demasiadas peticiones. Espera un minuto." }, 429)
     await next()
   }
 }
 
 // El chat gasta la clave del modelo; el historial solo lee memoria, por eso tiene más margen.
-app.use("/api/chat", exigirClave, limitador(config.rateLimitPorMin), bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: "Mensaje demasiado largo." }, 413) }))
-app.use("/api/sessions/*", exigirClave, limitador(config.rateLimitPorMin * 3))
+app.use("/api/chat", exigirSesion, limitador(config.rateLimitPorMin), bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ ok: false, error: "Mensaje demasiado largo." }, 413) }))
+app.use("/api/sessions/*", exigirSesion, limitador(config.rateLimitPorMin * 3))
 
 const CuerpoChat = z.object({
   sessionId: z.string().regex(PATRON_SESION),
@@ -76,10 +69,10 @@ const enCurso = new Set<string>()
 
 app.post("/api/chat", async (c) => {
   const cuerpo = CuerpoChat.safeParse(await c.req.json().catch(() => null))
-  if (!cuerpo.success) return c.json({ error: "Petición inválida: se espera { sessionId, message }." }, 400)
-  if (!llm) return c.json({ error: `El modelo no está disponible: ${errorLlm}` }, 503)
+  if (!cuerpo.success) return c.json({ ok: false, error: "Petición inválida: se espera { sessionId, message }." }, 400)
+  if (!llm) return c.json({ ok: false, error: `El modelo no está disponible: ${errorLlm}` }, 503)
   const { sessionId, message } = cuerpo.data
-  if (enCurso.has(sessionId)) return c.json({ error: "Ya hay un mensaje en proceso en esta sesión." }, 409)
+  if (enCurso.has(sessionId)) return c.json({ ok: false, error: "Ya hay un mensaje en proceso en esta sesión." }, 409)
   enCurso.add(sessionId)
   try {
     return c.json(await ejecutarTurno(obtenerSesion(sessionId), message, llm, raiz, remitente))
@@ -91,24 +84,24 @@ app.post("/api/chat", async (c) => {
 app.get("/api/sessions/:id", (c) => {
   const id = c.req.param("id")
   const sesion = PATRON_SESION.test(id) ? buscarSesion(id) : undefined
-  if (!sesion) return c.json({ error: "Sesión no encontrada." }, 404)
+  if (!sesion) return c.json({ ok: false, error: "Sesión no encontrada." }, 404)
   return c.json({ id: sesion.id, tokens: sesion.tokens, historial: sesion.historial })
 })
 
 // Borra una conversación del servidor. Responde 204 exista o no, para no revelar qué ids existen.
 app.delete("/api/sessions/:id", (c) => {
   const id = c.req.param("id")
-  if (!PATRON_SESION.test(id)) return c.json({ error: "Identificador inválido." }, 400)
-  if (enCurso.has(id)) return c.json({ error: "Hay un mensaje en proceso en esta sesión." }, 409)
+  if (!PATRON_SESION.test(id)) return c.json({ ok: false, error: "Identificador inválido." }, 400)
+  if (enCurso.has(id)) return c.json({ ok: false, error: "Hay un mensaje en proceso en esta sesión." }, 409)
   eliminarSesion(id)
   olvidarSesion(id)
   return c.body(null, 204)
 })
 
-app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "Ruta no encontrada." }, 404) : c.text("No encontrado", 404)))
+app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ ok: false, error: "Ruta no encontrada." }, 404) : c.text("No encontrado", 404)))
 app.onError((e, c) => {
   console.error(mensajeDeError(e))
-  return c.json({ error: "Error interno. La sesión sigue activa." }, 500)
+  return c.json({ ok: false, error: "Error interno. La sesión sigue activa." }, 500)
 })
 
 // Solo web/ es público: out/ y fixtures/ nunca se sirven.

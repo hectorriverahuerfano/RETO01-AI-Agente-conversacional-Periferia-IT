@@ -43,6 +43,8 @@ Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directa
 | `MAX_TOKENS_SESION` | Tope de tokens por sesión (150000) |
 | `RATE_LIMIT_POR_MIN` | Peticiones por minuto por IP (10) |
 | `LLM_TIMEOUT_MS` | Timeout al proveedor (60000) |
+| `SESSION_SECRET` | Firma de la cookie de sesión (32+ bytes). Obligatorio en producción |
+| `ORIGEN_PUBLICO` | Origen permitido para peticiones con cookie (en Render: la URL pública) |
 
 ## Copia real por correo (opcional, HU-7)
 
@@ -56,13 +58,16 @@ Topes: 3 correos por sesión y 10 por día (`CORREO_MAX_SESION`, `CORREO_MAX_DIA
 
 ## API
 
-La clave de acceso se envía en el header `x-access-key`.
+Desde el navegador se inicia sesión una vez con la clave (`POST /api/login`) y el servidor responde con una cookie firmada `HttpOnly` que vence en 8 horas; la clave no queda guardada en el navegador. Para `curl` o scripts se puede seguir enviando la clave en el header `x-access-key`.
 
 | Método | Ruta | Cuerpo / respuesta |
 |---|---|---|
 | `POST` | `/api/chat` | `{ sessionId, message }` → `{ reply, toolCalls[], needsConfirmation }` |
 | `GET` | `/api/sessions/:id` | Historial completo de la sesión |
 | `DELETE` | `/api/sessions/:id` | Borra la conversación del servidor (204 exista o no) |
+| `POST` | `/api/login` | `{ clave }` → 204 con cookie de sesión; 401 clave incorrecta; 429 tras 5 fallos por minuto |
+| `POST` | `/api/logout` | Cierra la sesión (204) |
+| `GET` | `/api/sesion` | `{ autenticado }` |
 | `GET` | `/api/health` | `{ ok: true, provider, model }` (sin clave de acceso) |
 
 ## Estructura

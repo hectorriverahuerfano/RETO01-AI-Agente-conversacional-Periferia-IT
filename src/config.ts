@@ -9,7 +9,14 @@ function hoyISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+const puertoLocal = entero("PORT", 3000)
+
 export const config = {
+  /** Render define RENDER=true: activa cookies Secure y exige SESSION_SECRET. */
+  produccion: Boolean(process.env.RENDER) || process.env.NODE_ENV === "production",
+  /** Orígenes desde los que se aceptan peticiones con cookie (CSRF). */
+  origenesPermitidos: (process.env.ORIGEN_PUBLICO ?? process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${puertoLocal},http://127.0.0.1:${puertoLocal}`)
+    .split(",").map((o) => o.trim()).filter(Boolean),
   proveedor: process.env.LLM_PROVIDER ?? "anthropic",
   modelo: process.env.LLM_MODEL ?? "claude-sonnet-5",
   ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
