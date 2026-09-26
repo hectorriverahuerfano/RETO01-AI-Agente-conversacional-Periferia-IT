@@ -50,7 +50,7 @@ El área administrativa transcribe a mano, cada mes, entre 8 y 12 formularios de
 
 **Por qué Sonnet 5:** en la prueba de la sección 11 llamó las 4 herramientas en el orden correcto, respetó "no envíes nada todavía", no repitió datos bancarios y cerró con la pregunta de confirmación. **qwen2.5-coder:7b llamó solo la primera herramienta e inventó el resto**: es la evidencia de por qué CA2 debe garantizarse en el diseño y no en el prompt. Con un modelo débil, las herramientas siguen generando archivos correctos, pero el texto del chat no es confiable.
 
-**Costo estimado por caso:** un caso completo usa unas 5 llamadas al modelo, cada una con el system prompt más el historial más los resultados de las herramientas. Eso da unos 25–35 mil tokens de entrada y unos 1.5 mil de salida, es decir **del orden de USD 0.10–0.15 por caso** a precios de Sonnet. Para 8–12 casos al mes, el costo es menor a USD 2 al mes. `MAX_TOKENS_SESION` corta en 50 mil.
+**Costo estimado por caso:** un caso completo usa unas 5 llamadas al modelo, cada una con el system prompt más el historial más los resultados de las herramientas. Eso da unos 25–35 mil tokens de entrada y unos 1.5 mil de salida, es decir **del orden de USD 0.10–0.15 por caso** a precios de Sonnet. Para 8–12 casos al mes, el costo es menor a USD 2 al mes. `MAX_TOKENS_SESION` corta en 150 mil: el flujo completo (procesar, confirmar y pedir la copia por correo) usa unos 60–90 mil tokens porque cada turno reenvía el historial; 50 mil resultó corto en la prueba real.
 
 ## 5. Diseño del portal web (sección 7.4)
 

@@ -73,9 +73,13 @@ function procesarConfirmacion(sesion: Sesion, texto: string): void {
   sesion.pendiente = undefined
 }
 
-function mensajeTope(toolCalls: ToolCallVisible[]): string {
+function mensajeTope(toolCalls: ToolCallVisible[], porTokens: boolean): string {
   const hechos = toolCalls.map((t) => `- ${t.nombre}: ${t.resumen}`).join("\n")
-  return `Alcancé el tope de ${config.maxIter} pasos en este turno. Esto es lo que logré:\n${hechos || "- nada todavía"}\n\nFalta completar el resto; pídeme continuar.`
+  const motivo = porTokens
+    ? `Esta sesión alcanzó el tope de ${config.maxTokensSesion} tokens.`
+    : `Alcancé el tope de ${config.maxIter} pasos en este turno.`
+  const siguiente = porTokens ? "Abre una sesión nueva para continuar." : "Falta completar el resto; pídeme continuar."
+  return `${motivo} Esto es lo que logré:\n${hechos || "- nada todavía"}\n\n${siguiente}`
 }
 
 export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapter, raiz: string, remitente?: Remitente): Promise<RespuestaTurno> {
@@ -109,7 +113,7 @@ export async function ejecutarTurno(sesion: Sesion, texto: string, llm: LlmAdapt
         }
         if (sesion.tokens >= config.maxTokensSesion) break
       }
-      if (!terminado) reply = mensajeTope(toolCalls)
+      if (!terminado) reply = mensajeTope(toolCalls, sesion.tokens >= config.maxTokensSesion)
     } catch (e) {
       // CA5: el error se muestra en claro y la sesión sigue viva.
       const motivo = e instanceof Error && e.name.includes("Timeout") ? "el modelo tardó demasiado en responder" : mensajeDeError(e)

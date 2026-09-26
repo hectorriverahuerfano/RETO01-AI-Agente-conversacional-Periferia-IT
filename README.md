@@ -40,7 +40,7 @@ Limpia `out/`, procesa los 4 casos de `fixtures/reto-01/casos/` llamando directa
 | `ACCESS_KEY` | Protege `/api/chat` y `/api/sessions`. Obligatoria |
 | `FECHA_EJECUCION` | Fecha para evaluar vigencias (`2026-09-25`). Vacía = hoy |
 | `MAX_ITER` | Tope de iteraciones herramienta → modelo por turno (25) |
-| `MAX_TOKENS_SESION` | Tope de tokens por sesión (50000) |
+| `MAX_TOKENS_SESION` | Tope de tokens por sesión (150000) |
 | `RATE_LIMIT_POR_MIN` | Peticiones por minuto por IP (10) |
 | `LLM_TIMEOUT_MS` | Timeout al proveedor (60000) |
 

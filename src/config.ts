@@ -15,7 +15,7 @@ export const config = {
   ollamaUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
   accessKey: process.env.ACCESS_KEY ?? "",
   maxIter: entero("MAX_ITER", 25),
-  maxTokensSesion: entero("MAX_TOKENS_SESION", 50000),
+  maxTokensSesion: entero("MAX_TOKENS_SESION", 150000),
   rateLimitPorMin: entero("RATE_LIMIT_POR_MIN", 10),
   timeoutMs: entero("LLM_TIMEOUT_MS", 60000),
   puerto: entero("PORT", 3000),
