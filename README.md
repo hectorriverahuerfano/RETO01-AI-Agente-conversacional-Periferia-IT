@@ -5,7 +5,7 @@ Reto técnico 01 · Periferia IT Group. Un agente de chat que lee la solicitud d
 - **Link de prueba:** https://reto01-registro-proveedor.onrender.com
 - **Clave de acceso al link:** `periferia-reto01`
 
-> Render (plan gratuito) puede tardar unos 50 s en responder la primera vez si el servicio estaba dormido. Un monitor de UptimeRobot lo mantiene despierto.
+> Render (plan gratuito) puede tardar unos 50 s en responder la primera vez si el servicio estaba dormido. Un workflow de GitHub Actions lo mantiene despierto con un ping cada 5 minutos.
 
 ## Requisitos
 

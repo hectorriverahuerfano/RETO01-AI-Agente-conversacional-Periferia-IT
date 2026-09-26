@@ -110,7 +110,21 @@ El área administrativa transcribe a mano, cada mes, entre 8 y 12 formularios de
 | Asistente | Para qué |
 |---|---|
 | **Claude Code (Claude Opus 5.5)** | Análisis del PRD, plan, código, pruebas y documentación |
-| **9 subagentes de Claude Code** (PO, arquitectura, diseño, desarrollo, full stack, code review, QA, seguridad y producción) | Dos rondas: cada uno leyó el PRD y los fixtures y propuso riesgos y ajustes; luego validaron el plan final. Sus hallazgos están en `hojaruta.md` (ajustes A1–A11). |
+| **9 subagentes de Claude Code** (definidos en `.claude/agents/`) | Dos rondas antes de programar: cada uno leyó el PRD y los fixtures y propuso riesgos y ajustes, y luego validó el plan final. Sus hallazgos están en `hojaruta.md` (ajustes A1–A11). El código lo escribió Claude Code directamente aplicando esos ajustes: delegar la construcción a subagentes habría multiplicado el consumo de tokens dentro de las 2 horas. |
+
+**Aporte de cada subagente:**
+
+| Agente | Rol | Aporte que quedó en la solución |
+|---|---|---|
+| **Simon** | Product Owner | Alcance P0/P1/P2; definir el umbral de confianza como supuesto; detectar que `generar_formulario` recibía valores del modelo (riesgo CA2) |
+| **Kira** | Arquitectura | Formato interno único para Anthropic y Ollama; confirmación controlada por el servidor; `modulo/` generado sin copias divergentes |
+| **Charlotte** | Diseño UX | Tarjetas plegables por herramienta, banner de confirmación, pantalla de clave de acceso, accesibilidad |
+| **Luna** | Desarrollo | Mapeo con glosario normalizado; filtro de caracteres para pdf-lib; resultado esperado por caso |
+| **Salen** | Full stack | Un solo proceso para API y front; contrato de la API definido antes del front |
+| **Lucy** | Code review | Checklist del contrato §6.2–§6.4; log doble; detectar que la "rúbrica de la sección 10" no existe |
+| **Coco** | QA | Tabla de conteos esperados para `demo.ts`; fijar `FECHA_EJECUCION` (la Cámara vence el 30-sep) |
+| **Max** | Seguridad | Validación de `caso` contra path traversal; correo como dato no confiable; datos bancarios fuera del borrador; clave de acceso comparada en tiempo constante |
+| **Oreo** | Producción | Render con proceso persistente (no serverless); `tsx` en `dependencies`; revisión de secretos antes del push |
 
 **Descartado de lo que propusieron, y por qué:**
 - **Aceptar la confirmación solo con un botón o un texto exacto** (seguridad y arquitectura): rompe la sección 11, que exige que escribir "envía" funcione. Se usó una lista cerrada de frases afirmativas, de un solo uso.
@@ -131,5 +145,5 @@ Hector revisó, dirigió y validó cada decisión y puede explicar cada línea.
 | Filtración de datos bancarios | Borrador de correo con plantilla fija sin datos de banco (RN2); cuentas enmascaradas en el chat; los logs solo guardan resúmenes |
 | Maestro desactualizado | Nombrar un dueño del dato y agregar fecha de última revisión al maestro |
 | Disco efímero de Render: `out/` y las sesiones se pierden al reiniciar | Aceptable en el reto; en producción, almacenamiento de objetos y sesiones en Redis |
-| Plan gratuito de Render: el servicio se duerme | UptimeRobot hace ping a `/api/health` cada 5 min; en producción, plan pago |
+| Plan gratuito de Render: el servicio se duerme | Un workflow de GitHub Actions (`.github/workflows/keepalive.yml`) consulta `/api/health` cada 5 min; en producción, plan pago |
 | Portales con CAPTCHA o MFA | Operación asistida por un humano (sección 5) |
